@@ -1,0 +1,31 @@
+{
+  "hosting": {
+    "public": "public",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "redirects": [
+      { "source": "/list.html", "destination": "/youth/list.html", "type": 301 },
+      { "source": "/list", "destination": "/youth/list.html", "type": 301 },
+      { "source": "/admin.html", "destination": "/youth/admin.html", "type": 301 },
+      { "source": "/admin", "destination": "/youth/admin.html", "type": 301 },
+      { "source": "/group.html", "destination": "/youth/group.html", "type": 301 },
+      { "source": "/group", "destination": "/youth/group.html", "type": 301 },
+      { "source": "/seminar.html", "destination": "/youth/seminar.html", "type": 301 },
+      { "source": "/seminar", "destination": "/youth/seminar.html", "type": 301 },
+      { "source": "/lineage.html", "destination": "/youth/lineage.html", "type": 301 },
+      { "source": "/lineage", "destination": "/youth/lineage.html", "type": 301 },
+      { "source": "/natural-farm.html", "destination": "/farm/natural-farm.html", "type": 301 },
+      { "source": "/natural-farm", "destination": "/farm/natural-farm.html", "type": 301 },
+      { "source": "/natural-farm-admin.html", "destination": "/farm/natural-farm-admin.html", "type": 301 },
+      { "source": "/natural-farm-admin", "destination": "/farm/natural-farm-admin.html", "type": 301 },
+      { "source": "/change.html", "destination": "/seed/change.html", "type": 301 },
+      { "source": "/change", "destination": "/seed/change.html", "type": 301 }
+    ]
+  },
+  "functions": {
+    "source": "functions"
+  }
+}

@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<body>
+  <h1>清除快取中...</h1>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for(let registration of registrations) {
+          registration.unregister();
+        }
+        caches.keys().then(function(names) {
+          for (let name of names) caches.delete(name);
+          alert('快取已清除！請關閉此分頁，然後重新開啟網站。');
+          window.location.href = 'index.html';
+        });
+      });
+    }
+  </script>
+</body>
+</html>

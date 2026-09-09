@@ -1,0 +1,16 @@
+{
+  "name": "shumei",
+  "version": "1.0.0",
+  "description": "youth",
+  "main": "index.html",
+  "scripts": {},
+  "keywords": [
+    "shumei"
+  ],
+  "author": "Libra",
+  "license": "ISC",
+  "dependencies": {
+    "exceljs": "^4.4.0",
+    "uuid": "^7.0.3"
+  }
+}

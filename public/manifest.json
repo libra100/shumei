@@ -1,0 +1,29 @@
+{
+  "name": "秀明青年名單系統",
+  "short_name": "秀明青年",
+  "description": "神慈秀明會青年部名單與座談會系統",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#5c3a94",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "./logo.png",
+      "sizes": "any",
+      "type": "image/png"
+    }
+  ],
+  "mcpServers": {
+    "blender-mcp": {
+      "command": "node",
+      "args": [
+        "C:/FULL/PATH/TO/blender-mcp-v2/src/mcp-server/dist/index.js"
+      ],
+      "env": {
+        "BLENDER_HOST": "127.0.0.1",
+        "BLENDER_PORT": "9876"
+      }
+    }
+  }
+}

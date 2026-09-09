@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>種子交換會管理與自助選種系統</title>
+  
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/app.css">
+  
+  <!-- Firebase compatibility libraries -->
+  <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-firestore-compat.js"></script>
+  
+  <!-- QR Code generation and optical scanning dependencies -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  
+  <style>
+    /* Custom premium overrides to match the user's styling policy */
+    .glow-cyan {
+      box-shadow: 0 0 15px rgba(0, 243, 255, 0.4);
+      border-color: #00F3FF !important;
+    }
+    .glow-amber {
+      box-shadow: 0 0 15px rgba(255, 161, 0, 0.4);
+      border-color: #FFA100 !important;
+    }
+    .tab-btn {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      color: var(--text-muted);
+      transition: all 0.3s cubic-bezier(0.15, 0.85, 0.35, 1);
+      cursor: pointer;
+    }
+    .tab-btn.active {
+      background: rgba(0, 243, 255, 0.2);
+      border-color: #00F3FF;
+      color: #00F3FF;
+      box-shadow: 0 0 10px rgba(0, 243, 255, 0.2);
+    }
+    .tab-btn:hover {
+      transform: scale(1.03);
+    }
+    .qr-container {
+      background: white;
+      padding: 10px;
+      border-radius: 8px;
+      display: inline-block;
+    }
+    #reader {
+      width: 100%;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--glass-border);
+    }
+    .badge-pill {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="app-header">
+    <div class="app-title">
+      <span style="font-size: 1.5rem;">🌱</span>
+      <div>
+        <h1 class="h5 m-0 font-weight-bold">秀明自然農法種子交換會</h1>
+        <p class="m-0 text-muted" style="font-size: 10px;">離線自助選種與物流核對系統</p>
+      </div>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <button id="btn-login" onclick="promptLogin()" class="btn btn-outline-light btn-sm rounded-pill text-[10px] font-bold">
+        工作人員登入
+      </button>
+      <div id="admin-badge" class="badge-pill glow-cyan d-none flex items-center gap-2">
+        <span>🛡️ 後台模式</span>
+        <a href="#" onclick="logout()" class="text-white ml-2 text-[10px]">登出</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="container py-4">
+    <!-- Anonymous Upgrade Banner -->
+    <div id="link-google-banner" class="bg-amber-500/20 border border-amber-500/50 rounded-xl p-3 mb-4 d-none flex justify-between items-center">
+      <div>
+        <h5 class="text-amber-200 font-bold m-0 text-sm">⚠️ 訪客模式登入中</h5>
+        <p class="text-amber-200/70 text-xs m-0 mt-1">您的資料僅綁定當前瀏覽器，為避免遺失，建議連結至 Google 帳號永久保存。</p>
+      </div>
+      <button onclick="linkGoogleAccount(this)" class="btn btn-warning btn-sm font-bold shadow-sm flex-shrink-0 ml-3">
+        🔗 連結 Google
+      </button>
+    </div>
+
+    <!-- Admin Navigation Tabs (Hidden by default) -->
+    <div id="admin-nav" class="row g-2 mb-4 d-none">
+      <div class="col-4">
+        <button onclick="switchTab('staff-approval')" id="btn-staff-approval" class="tab-btn w-full py-3 rounded-xl font-bold text-sm active">
+          📥 1. 報到審核
+        </button>
+      </div>
+      <div class="col-4">
+        <button onclick="switchTab('packaging')" id="btn-packaging" class="tab-btn w-full py-3 rounded-xl font-bold text-sm">
+          🏷️ 2. 分裝貼標
+        </button>
+      </div>
+      <div class="col-4">
+        <button onclick="switchTab('exit')" id="btn-exit" class="tab-btn w-full py-3 rounded-xl font-bold text-sm">
+          📤 3. 出口核對
+        </button>
+      </div>
+    </div>
+
+    <!-- Active Tab Workspace -->
+    <main class="row">
+      <!-- 1. 民眾自助報到 Panel -->
+      <section id="panel-pub-entrance" class="col-12 tab-panel">
+        <div class="glass-card">
+          <h2 class="h4 font-bold text-white mb-3">民眾：自助登記基本資料</h2>
+          <p class="text-muted text-xs mb-4">請填寫您帶來的種子基本資料。提交後請將您的種子包交給服務台工作人員核對。</p>
+          <button type="button" onclick="mockGoogleLogin(this)" class="btn btn-light w-full py-3 flex items-center justify-center gap-2 font-bold rounded-xl mb-3">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" width="20" /> 使用 Google 帳號快速帶入資料
+          </button>
+          <div class="text-center py-2 relative mb-3">
+            <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-secondary/30"></div></div>
+            <span class="relative bg-glass px-3 text-muted text-xs">或手動填寫以下資料</span>
+          </div>
+          
+          <form onsubmit="selfRegister(event)" class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label text-xs font-bold">您的姓名 *</label>
+              <input type="text" id="self-name" required placeholder="例如：李大同" class="form-control bg-dark border-secondary text-white" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label text-xs font-bold">手機號碼 *</label>
+              <input type="tel" id="self-phone" required placeholder="例如：0912345678" class="form-control bg-dark border-secondary text-white" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label text-xs font-bold">帶來的種子名稱 *</label>
+              <input type="text" id="self-seed-name" required placeholder="例如：黑柿留種番茄" class="form-control bg-dark border-secondary text-white" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label text-xs font-bold">種子品種 (選填)</label>
+              <input type="text" id="self-seed-variety" placeholder="例如：茄科" class="form-control bg-dark border-secondary text-white" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label text-xs font-bold">攜帶總重量 (克) (選填)</label>
+              <input type="number" id="self-weight" placeholder="例如：100" class="form-control bg-dark border-secondary text-white" />
+            </div>
+            <div class="col-12">
+              <button type="submit" class="w-full btn btn-primary py-3 rounded-xl font-black text-sm interactive glow-cyan">
+                送出報到申請
+              </button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <!-- 2. 工作人員審核核發 Panel -->
+      <section id="panel-staff-approval" class="col-12 tab-panel d-none">
+        <div class="glass-card">
+          <h2 class="h4 font-bold text-white mb-3">工作人員：待核發報到名單</h2>
+          <p class="text-muted text-xs mb-4">核對民眾帶來的種子，手動輸入包數與核發兌換額度。</p>
+          
+          <div class="table-responsive">
+            <table class="table text-white align-middle" style="border-color: rgba(255,255,255,0.1);">
+              <thead>
+                <tr class="text-muted" style="font-size: 11px;">
+                  <th>姓名</th>
+                  <th>攜帶種子</th>
+                  <th>重量 (g)</th>
+                  <th>核定包數(可兌換額度)</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="pending-registration-list">
+                <!-- Dynamically rendered pending list -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. 分裝貼標 Panel -->
+      <section id="panel-packaging" class="col-12 tab-panel d-none">
+        <div class="glass-card">
+          <h2 class="h4 font-bold text-white mb-3">工作人員：種子分裝與二維碼貼標</h2>
+          <p class="text-muted text-xs mb-4">將民眾帶來的種子進行分裝成小包裝，並貼上唯一的二維碼貼紙以供選購掃描。</p>
+          
+          <div class="table-responsive">
+            <table class="table text-white align-middle" style="border-color: rgba(255,255,255,0.1);">
+              <thead>
+                <tr class="text-muted" style="font-size: 11px;">
+                  <th>來源民眾</th>
+                  <th>種子品名</th>
+                  <th>總重量</th>
+                  <th>核給額度</th>
+                  <th>實際分裝包數 (列印張數)</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="packaging-list">
+                <!-- Dynamically rendered -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Labels Print Preview Modal -->
+        <div id="labels-modal" class="glass-card mt-4 d-none">
+          <div class="flex items-center justify-between border-b border-secondary/20 pb-3 mb-4">
+            <h4 class="h5 font-bold text-white m-0">🏷️ 種子包標籤列印預覽</h4>
+            <button onclick="document.getElementById('labels-modal').classList.add('d-none')" class="btn-close btn-close-white"></button>
+          </div>
+          
+          <div id="labels-print-area" class="row g-3">
+            <!-- Dynamically generated labels with QR codes -->
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. 自助選種 Panel -->
+      <section id="panel-select" class="col-12 tab-panel d-none">
+        <div class="glass-card">
+          <h2 class="h4 font-bold text-white mb-3">參與民眾：掃描種子包 QR Code</h2>
+          <p class="text-muted text-xs mb-4">請先掃描或輸入您的「入場兌換券」載入額度，即可開始掃描欲拿取的種子包。</p>
+          
+          <!-- Step A: Choose Identity / Login -->
+          <div id="select-step-login" class="space-y-4">
+            
+            <div id="select-pending-msg" class="d-none bg-amber-500/10 border border-amber-500/30 p-4 rounded-2xl text-center mb-4">
+              <div class="text-3xl mb-2">⏳</div>
+              <h4 class="font-bold text-amber-200 text-sm">等待工作人員查驗與核發額度中...</h4>
+              <p class="text-amber-200/70 text-xs mt-1 mb-0">當工作人員核准後，您的額度將會自動載入，請稍候。</p>
+            </div>
+
+            <div id="select-login-actions">
+              <button type="button" onclick="mockGoogleLoginTab3(this)" class="btn btn-light w-full py-3 flex items-center justify-center gap-2 font-bold rounded-xl mb-4">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" width="20" /> 使用 Google 帳號登入載入額度
+              </button>
+            </div>
+          </div>
+
+          <!-- Step B: Active Session Scanner -->
+          <div id="select-active-session" class="d-none space-y-4">
+            <div class="bg-gradient-to-r from-emerald-500/20 to-teal-500/10 border border-emerald-500/30 p-4 rounded-2xl flex items-center justify-between">
+              <div>
+                <h4 id="session-username" class="font-bold text-white text-md m-0"></h4>
+                <p id="session-quota" class="text-xs text-slate-400 mt-1 m-0"></p>
+              </div>
+              <button onclick="exitSession()" class="btn btn-outline-danger btn-xs py-1 px-2.5 rounded-lg text-[10px]">登出憑證</button>
+            </div>
+
+            <!-- Optical scanner box -->
+            <div id="scanner-container" class="d-none">
+              <div id="reader"></div>
+              <button onclick="stopQRScanner()" class="w-full btn btn-secondary btn-sm mt-2 rounded-lg">關閉相機</button>
+            </div>
+
+            <button id="btn-scan-bag" onclick="startQRScanner('bag')" class="w-full btn btn-primary py-3.5 rounded-2xl font-black text-sm interactive glow-cyan flex items-center justify-center gap-2">
+              📷 開啟相機掃描種子包二維碼
+            </button>
+
+            <!-- Scanned Cart List -->
+            <div class="border-t border-secondary/20 pt-4">
+              <h5 class="h6 text-white font-bold mb-3 flex items-center gap-1.5">🛒 已挑選的種子包</h5>
+              <div id="cart-list" class="space-y-2">
+                <!-- Dynamically populated cart items -->
+              </div>
+            </div>
+
+            <!-- Finish selection info -->
+            <div class="border-t border-secondary/20 pt-4 text-center">
+              <div class="bg-amber-500/10 border border-amber-500/30 p-3.5 rounded-xl text-center text-xs text-amber-200 leading-relaxed">
+                💡 <strong>選購完成提示</strong>：<br>
+                選好後不需要生成條碼，請直接攜帶選好的種子包前往出口處，向工作人員報上您的姓名，工作人員會直接在出口後台進行核對放行！
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. 出口核對 Panel -->
+      <section id="panel-exit" class="col-12 tab-panel d-none">
+        <div class="glass-card">
+          <h2 class="h4 font-bold text-white mb-3">出口工作人員：數量與種類核對關卡</h2>
+          <p class="text-muted text-xs mb-4">點選下方已挑選完畢的民眾，確認他們手機上已選取的種子包，與手上拿的實體包裝完全一致即可放行。</p>
+          
+          <div class="mb-4">
+            <label class="form-label text-xs font-bold mb-2.5 block text-slate-300">目前在會場選購的民眾名單 *</label>
+            <div id="exit-participants-list" class="row g-2">
+              <!-- list of active participant buttons -->
+            </div>
+          </div>
+          
+          <!-- Verification Result Details -->
+          <div id="exit-check-details" class="d-none border border-secondary/30 bg-dark/40 rounded-2xl p-4 space-y-4">
+            <div class="flex items-center justify-between border-b border-secondary/20 pb-3">
+              <div>
+                <h4 id="exit-user-name" class="font-bold text-white text-md m-0"></h4>
+                <p id="exit-ticket-id" class="text-xs text-muted m-0 font-mono"></p>
+              </div>
+              <span id="exit-status-badge" class="badge-pill bg-emerald-500/20 text-emerald-400">核對中</span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+              <div class="bg-dark/60 p-3 rounded-xl border border-secondary/20 text-center">
+                <span class="text-muted text-[10px] block font-bold">可兌換包數額度</span>
+                <strong id="exit-user-quota" class="text-2xl text-amber font-black block mt-1"></strong>
+              </div>
+              <div class="bg-dark/60 p-3 rounded-xl border border-secondary/20 text-center">
+                <span class="text-muted text-[10px] block font-bold">實際挑選包數</span>
+                <strong id="exit-actual-count" class="text-2xl text-cyan font-black block mt-1"></strong>
+              </div>
+            </div>
+
+            <div>
+              <h5 class="text-xs font-bold text-slate-300 mb-2">已挑選明細：</h5>
+              <div id="exit-cart-details" class="space-y-1.5">
+                <!-- list of selected bags -->
+              </div>
+            </div>
+
+            <!-- Approval action -->
+            <div class="pt-4 border-t border-secondary/20 flex gap-2">
+              <button onclick="approveExitCheckout()" class="flex-1 btn btn-success py-3 rounded-xl font-bold text-sm glow-cyan">
+                ✅ 核對無誤：核准放行
+              </button>
+              <button onclick="document.getElementById('exit-check-details').classList.add('d-none')" class="btn btn-outline-secondary py-3 rounded-xl font-bold text-sm">
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Registration Success Modal -->
+  <div id="registration-success-modal" class="d-none fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+    <div class="glass-card max-w-sm w-full text-center py-5">
+      <div class="text-5xl mb-3">🎉</div>
+      <h3 class="h5 font-bold text-white mb-2">報到登記已送出！</h3>
+      <p class="text-sm text-slate-300 mb-4 px-2">請將您的種子交給工作人員查驗，待核准後，系統將自動為您開啟額度！<br><br>我們現在將帶您前往「選種頁面」。</p>
+      <button onclick="closeRegistrationModalAndProceed()" class="btn btn-primary w-full py-3 rounded-xl font-bold interactive glow-cyan">
+        前往選種
+      </button>
+    </div>
+  </div>
+
+  <script src="/js/change.js"></script>
+</body>
+</html>

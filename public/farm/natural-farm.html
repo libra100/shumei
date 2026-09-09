@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>神慈秀明會 - 自然農法推廣與活動社群平台</title>
+  
+  <!-- PWA & Meta settings -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#163824">
+  <link rel="apple-touch-icon" href="/logo.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="icon" href="/logo.png" type="image/png">
+
+  <!-- Google Fonts & Bootstrap 5 & FontAwesome -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- App & Natural Farm CSS -->
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/natural-farm.css">
+</head>
+<body class="natural-farm-body">
+
+  <!-- Global Glass Toast Notification Container -->
+  <div id="toastContainer" class="position-fixed top-0 start-50 translate-middle-x p-3" style="z-index: 99999; max-width: 90vw; width: 420px;"></div>
+
+  <!-- Top App Navigation -->
+  <header class="farm-top-nav">
+    <div class="container-fluid d-flex justify-content-between align-items-center px-lg-4">
+      <a href="/farm/natural-farm.html" class="farm-brand">
+        <div class="farm-brand-logo">
+          <img src="/logo.png" alt="Shumei Logo">
+        </div>
+        <div>
+          <div style="font-size: 1.05rem; font-weight: 700; color: #fff;">神慈秀明會</div>
+          <div style="font-size: 0.72rem; color: var(--farm-green-200); font-weight: 500; letter-spacing: 0.05em;">自然農法推廣與活動社群</div>
+        </div>
+      </a>
+
+      <!-- Karma Points & Action Group -->
+      <div class="d-flex align-items-center gap-2">
+        <div class="karma-badge interactive" onclick="openKarmaModal()" title="點擊查看綠色播種者積分與兌換">
+          <i class="fa-solid fa-seedling text-warning"></i>
+          <span id="userKarmaDisplay">380 pts</span>
+        </div>
+        <button class="btn btn-sm btn-outline-light d-flex align-items-center gap-1 rounded-pill px-3 py-1 interactive" onclick="openMyBookingsModal()">
+          <i class="fa-regular fa-calendar-check"></i>
+          <span class="d-none d-sm-inline">我的預約</span>
+          <span id="myBookingsCount" class="badge bg-warning text-dark rounded-pill" style="display:none;">0</span>
+        </button>
+        <a href="/farm/natural-farm-admin.html" class="btn btn-sm btn-secondary-custom rounded-pill px-2 px-md-3 py-1 d-flex align-items-center gap-1 text-decoration-none" title="前往營運後台">
+          <i class="fa-solid fa-shield-halved"></i>
+          <span class="d-none d-md-inline">後台管理</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="container py-3 px-3 px-md-4 mb-5">
+    
+    <!-- Hero Event Carousel / Banner -->
+    <section class="mb-4">
+      <div id="farmHeroCarousel" class="carousel slide" data-bs-ride="carousel">
+        <div class="carousel-indicators">
+          <button type="button" data-bs-target="#farmHeroCarousel" data-bs-slide-to="0" class="active"></button>
+          <button type="button" data-bs-target="#farmHeroCarousel" data-bs-slide-to="1"></button>
+          <button type="button" data-bs-target="#farmHeroCarousel" data-bs-slide-to="2"></button>
+        </div>
+        <div class="carousel-inner rounded-4 shadow-lg">
+          <!-- Slide 1 -->
+          <div class="carousel-item active">
+            <div class="farm-hero-banner" style="background-image: url('https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1200&q=80');">
+              <div class="farm-hero-overlay"></div>
+              <div class="farm-hero-content">
+                <span class="farm-badge-pill gold"><i class="fa-solid fa-utensils me-1"></i> 特別企劃</span>
+                <h2 class="h3 fw-bold text-white mb-2">光之餐桌：初夏旬味無菜單料理</h2>
+                <p class="text-light small mb-3 text-truncate-2">在星空與稻浪之間，品嚐 100% 秀明自然農法零農藥、無肥料的土地最純淨風味。</p>
+                <button class="btn btn-sm btn-primary-custom interactive" onclick="quickBookEvent('event_dining_01')">
+                  <i class="fa-solid fa-ticket me-1"></i> 立即預約席位
+                </button>
+              </div>
+            </div>
+          </div>
+          <!-- Slide 2 -->
+          <div class="carousel-item">
+            <div class="farm-hero-banner" style="background-image: url('https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=1200&q=80');">
+              <div class="farm-hero-overlay"></div>
+              <div class="farm-hero-content">
+                <span class="farm-badge-pill green"><i class="fa-solid fa-hands-holding-circle me-1"></i> 產地體驗</span>
+                <h2 class="h3 fw-bold text-white mb-2">自然農法水稻插秧與奉仕日</h2>
+                <p class="text-light small mb-3">赤腳踩進肥沃土壤，親手種下自家採種第 12 代越光米秧苗，體會人與土地的深層連結。</p>
+                <button class="btn btn-sm btn-primary-custom interactive" onclick="quickBookEvent('event_farm_02')">
+                  <i class="fa-solid fa-seedling me-1"></i> 探索農事體驗
+                </button>
+              </div>
+            </div>
+          </div>
+          <!-- Slide 3 -->
+          <div class="carousel-item">
+            <div class="farm-hero-banner" style="background-image: url('https://images.unsplash.com/photo-1488459716781-31db52582fe9?auto=format&fit=crop&w=1200&q=80');">
+              <div class="farm-hero-overlay"></div>
+              <div class="farm-hero-content">
+                <span class="farm-badge-pill cyan"><i class="fa-solid fa-store me-1"></i> 市集工作坊</span>
+                <h2 class="h3 fw-bold text-white mb-2">水花園自然農法市集 & 自家採種工作坊</h2>
+                <p class="text-light small mb-3">認識作物的生命基因，學習自留種技術，守護原生土地種子多樣性。</p>
+                <button class="btn btn-sm btn-primary-custom interactive" onclick="quickBookEvent('event_seed_03')">
+                  <i class="fa-solid fa-dna me-1"></i> 查看工作坊
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main Navigation Tabs -->
+    <div class="filter-tabs-scroll mb-4">
+      <button class="filter-chip active interactive" onclick="switchMainTab('events', this)">
+        <i class="fa-solid fa-calendar-days"></i> 活動探索與預約
+      </button>
+      <button class="filter-chip interactive" onclick="switchMainTab('feed', this)">
+        <i class="fa-solid fa-wheat-awn"></i> 產地即時日誌
+      </button>
+      <button class="filter-chip interactive" onclick="switchMainTab('seeds', this)">
+        <i class="fa-solid fa-dna"></i> 粒籽記憶庫與水稻認養
+      </button>
+      <button class="filter-chip interactive" onclick="switchMainTab('food_edu', this)">
+        <i class="fa-solid fa-bowl-rice"></i> 節氣食育與純淨風味
+      </button>
+      <button class="filter-chip interactive" onclick="switchMainTab('reviews', this)">
+        <i class="fa-solid fa-comments"></i> 食農心得牆 (UGC)
+      </button>
+    </div>
+
+    <!-- ==========================================
+         TAB 1: EVENTS & BOOKING (活動探索與預約)
+         ========================================== -->
+    <section id="tab-events" class="tab-pane-content">
+      <!-- Category Filter Pills -->
+      <div class="d-flex flex-wrap gap-2 mb-3 align-items-center justify-content-between">
+        <div class="d-flex flex-wrap gap-2">
+          <button class="btn btn-sm btn-dark rounded-pill px-3 active-category" onclick="filterEventsByCategory('all', this)">全部活動</button>
+          <button class="btn btn-sm btn-outline-secondary text-light rounded-pill px-3" onclick="filterEventsByCategory('farm_exp', this)">🌱 農事體驗</button>
+          <button class="btn btn-sm btn-outline-secondary text-light rounded-pill px-3" onclick="filterEventsByCategory('dining', this)">🍽️ 餐桌料理</button>
+          <button class="btn btn-sm btn-outline-secondary text-light rounded-pill px-3" onclick="filterEventsByCategory('market', this)">🧺 市集出攤</button>
+          <button class="btn btn-sm btn-outline-secondary text-light rounded-pill px-3" onclick="filterEventsByCategory('seed_saving', this)">🧬 保種工作坊</button>
+        </div>
+        <div class="text-muted small">
+          <i class="fa-solid fa-filter me-1"></i>共 <span id="eventCountDisplay">4</span> 場活動熱烈報名中
+        </div>
+      </div>
+
+      <!-- Event Cards Grid -->
+      <div id="eventsGrid" class="row g-3">
+        <!-- Dynamically Populated by natural-farm.js -->
+        <div class="col-12 text-center py-5">
+          <div class="spinner-border text-success" role="status"></div>
+          <p class="text-muted mt-2">載入自然農法活動中...</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         TAB 2: FARM FEED & NEWS (產地即時日誌)
+         ========================================== -->
+    <section id="tab-feed" class="tab-pane-content" style="display:none;">
+      <div class="row g-3">
+        <div class="col-lg-8">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4 class="h5 fw-bold mb-0 text-white"><i class="fa-solid fa-camera-retro text-success me-2"></i>農夫的一天與田區即時影像</h4>
+            <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill">今日立夏 · 氣溫 28°C</span>
+          </div>
+
+          <div id="feedPostsContainer">
+            <!-- Feed Posts populated by JS -->
+          </div>
+        </div>
+
+        <!-- Right Side: 24 Solar Terms & Weather Tips -->
+        <div class="col-lg-4">
+          <div class="farm-card">
+            <div class="d-flex align-items-center gap-2 mb-3">
+              <i class="fa-solid fa-cloud-sun text-warning fs-4"></i>
+              <div>
+                <h5 class="fw-bold mb-0 text-white">節氣農事行事曆</h5>
+                <small class="text-muted">順應自然天時律動</small>
+              </div>
+            </div>
+            <p class="small text-light">「立夏小滿，雨水相趕」——此時正值水稻分櫱旺盛期，秀明田區不施任何化學農藥與肥料，靠純淨山泉水與深層土溫自然培育根系健康。</p>
+            <div class="p-2 rounded-3 bg-dark bg-opacity-50 border border-success border-opacity-25 small mb-3">
+              <span class="text-success fw-bold"><i class="fa-solid fa-leaf me-1"></i> 田區微生態指標：</span>
+              <div class="mt-1 text-light">今日觀察到大批紅娘華、負子蟲與水螳螂，水質純淨無虞！</div>
+            </div>
+            <button class="btn btn-sm btn-outline-success w-100 rounded-pill interactive" onclick="switchMainTab('food_edu')">
+              查看二十四節氣純淨食譜 <i class="fa-solid fa-arrow-right ms-1"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         TAB 3: SEED DNA & RICE ADOPTION (粒籽記憶庫與水稻認養)
+         ========================================== -->
+    <section id="tab-seeds" class="tab-pane-content" style="display:none;">
+      <div class="farm-card seed-card mb-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+          <div>
+            <span class="farm-badge-pill green"><i class="fa-solid fa-fingerprint me-1"></i> 作物基因溯源</span>
+            <h3 class="h4 fw-bold text-white mb-1">粒籽記憶庫 (Seed DNA Traceability)</h3>
+            <p class="text-light small mb-0">自然農法核心哲學：種子透過自家採種世代傳承，適應在地風土，形成天然抗病力與獨特純淨甘甜。</p>
+          </div>
+          <button class="btn btn-primary-custom btn-sm interactive" onclick="openAdoptRiceModal()">
+            <i class="fa-solid fa-seedling me-1"></i> 認養一桶水稻 (2026 夏收)
+          </button>
+        </div>
+
+        <div class="row g-3">
+          <!-- Seed 1 -->
+          <div class="col-md-6">
+            <div class="p-3 rounded-4 bg-dark bg-opacity-50 border border-success border-opacity-25">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="fw-bold text-white mb-0">自家採種越光米</h5>
+                <span class="seed-gen-tag"><i class="fa-solid fa-tree me-1"></i>第 12 代</span>
+              </div>
+              <p class="small text-muted mb-2"><i class="fa-solid fa-location-dot me-1 text-danger"></i>栽培地：南投埔里秀明示範農場（農友：陳大哥）</p>
+              <div class="timeline-track small text-light">
+                <div class="timeline-node">
+                  <strong>第 1 代 (2014)</strong>：原種引進，前三年產量適應期。
+                </div>
+                <div class="timeline-node">
+                  <strong>第 8 代 (2021)</strong>：根系深度達一般慣行農法 2.5 倍，抗倒伏性極佳。
+                </div>
+                <div class="timeline-node">
+                  <strong class="text-warning">第 12 代 (2026 現行)</strong>：穀粒飽滿晶透，自帶淡雅米香，純淨度五星。
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Seed 2 -->
+          <div class="col-md-6">
+            <div class="p-3 rounded-4 bg-dark bg-opacity-50 border border-success border-opacity-25">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="fw-bold text-white mb-0">自家採種青皮黑豆</h5>
+                <span class="seed-gen-tag"><i class="fa-solid fa-tree me-1"></i>第 9 代</span>
+              </div>
+              <p class="small text-muted mb-2"><i class="fa-solid fa-location-dot me-1 text-danger"></i>栽培地：宜蘭員山純淨水源區（農友：林大姐）</p>
+              <div class="timeline-track small text-light">
+                <div class="timeline-node">
+                  <strong>第 1 代 (2017)</strong>：選育無蟲害之健康母株留種。
+                </div>
+                <div class="timeline-node">
+                  <strong>第 6 代 (2022)</strong>：適應多雨氣候，豆香濃郁無豆腥味。
+                </div>
+                <div class="timeline-node">
+                  <strong class="text-warning">第 9 代 (2026 現行)</strong>：天然花青素與蛋白質含量穩定，釀造純醬油首選。
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Adopt A Rice Bucket Progress Section -->
+      <div class="farm-card">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h4 class="h5 fw-bold text-white mb-0"><i class="fa-solid fa-camera text-warning me-2"></i>我的認養水稻成長日記 (Bucket #A-082)</h4>
+          <span class="badge bg-success text-white px-3 py-1 rounded-pill">田區狀態：健康分櫱中</span>
+        </div>
+        <div class="row g-3 align-items-center">
+          <div class="col-md-5">
+            <div class="position-relative rounded-4 overflow-hidden shadow border border-secondary border-opacity-25" style="cursor: pointer;" onclick="openTimelapseModal()">
+              <img src="https://images.unsplash.com/photo-1536657464919-892534f60d6e?auto=format&fit=crop&w=800&q=80" alt="Rice field progress" class="img-fluid w-100">
+              <div class="position-absolute bottom-0 start-0 w-100 p-2 bg-dark bg-opacity-75 text-center text-light small">
+                <i class="fa-solid fa-expand me-1"></i> 點擊放大查看五階段縮時相片
+              </div>
+            </div>
+          </div>
+          <div class="col-md-7">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span class="badge bg-warning text-dark px-3 py-1 rounded-pill fw-bold">生長階段：有效分櫱期</span>
+              <span class="text-muted small">預計收成：7 月中旬</span>
+            </div>
+            <div class="quota-progress-container mb-2">
+              <div class="quota-progress-fill" style="width: 65%;"></div>
+            </div>
+            <p class="small text-light mb-2"><strong>田間筆記 (2026/05/10)：</strong>「水稻株高已達 38 公分，分櫱數達 16 枝。田間水生昆蟲繁盛，天然生態食物鏈運作良好，完全無須人工除草劑。」</p>
+            <div class="d-flex flex-wrap gap-2">
+              <button class="btn btn-sm btn-outline-light rounded-pill interactive" onclick="openTimelapseModal()">
+                <i class="fa-solid fa-images me-1"></i> 瀏覽各生長階段縮時相冊
+              </button>
+              <button class="btn btn-sm btn-success rounded-pill interactive" onclick="openAskFarmerModal('陳大哥')">
+                <i class="fa-solid fa-message me-1"></i> 向陳大哥農夫提問
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         TAB 4: FOOD EDU & SEASONAL (節氣食育與純淨風味)
+         ========================================== -->
+    <section id="tab-food_edu" class="tab-pane-content" style="display:none;">
+      <div class="row g-3">
+        <!-- Interactive Sugar / Additive Calculator -->
+        <div class="col-lg-6">
+          <div class="farm-card h-100">
+            <span class="farm-badge-pill gold"><i class="fa-solid fa-calculator me-1"></i> 食育互動工具</span>
+            <h4 class="h5 fw-bold text-white mb-2">精緻白砂糖與添加物熱量負擔換算器</h4>
+            <p class="text-muted small mb-3">比較自然農法當令原型食物與市售加工品對身體與土地的負擔差。</p>
+            
+            <div class="mb-3">
+              <label class="form-label small text-light">選擇常見市售加工食品：</label>
+              <select id="calcFoodSelect" class="form-select bg-dark text-light border-secondary" onchange="calculateAdditiveImpact()">
+                <option value="soda">含糖碳酸飲料 (500ml)</option>
+                <option value="snack">人工香料洋芋片 (1包)</option>
+                <option value="instant_noodles">化學調味泡麵 (1碗)</option>
+                <option value="sweet_tea">市售手搖全糖奶茶 (700ml)</option>
+              </select>
+            </div>
+
+            <div class="calc-result-box mb-3" id="calcResultBox">
+              <div class="text-warning fw-bold fs-5 mb-1" id="sugarCount">相當於攝取 12.5 顆方糖 (50g)</div>
+              <div class="small text-light" id="additiveList">含防腐劑、焦糖色素、高果糖糖漿等 6 種人工合成物</div>
+              <hr class="border-secondary my-2">
+              <div class="text-success small fw-bold" id="farmAlternative">
+                🌿 自然農法替換方案：享用「初夏自家採種甜玉米生食」，天然果糖與水溶性纖維，0 負擔吸收！
+              </div>
+            </div>
+
+            <button class="btn btn-sm btn-outline-warning w-100 rounded-pill interactive" onclick="openFoodQuizModal()">
+              <i class="fa-solid fa-medal me-1"></i> 開始食育小測驗 (+20 Karma)
+            </button>
+          </div>
+        </div>
+
+        <!-- 24 Solar Terms Seasonal Recipes -->
+        <div class="col-lg-6">
+          <div class="farm-card h-100">
+            <span class="farm-badge-pill green"><i class="fa-solid fa-book-open me-1"></i> 當季主廚私房食譜</span>
+            <h4 class="h5 fw-bold text-white mb-2">初夏旬味：自然農法無水甘甜番茄炊飯</h4>
+            <p class="text-muted small mb-3">不加一滴人工高湯，全靠自然農法番茄自身的純淨果酸與日曬越光米釋放甘甜。</p>
+            
+            <div class="food-card mb-3">
+              <h6 class="fw-bold text-success mb-2"><i class="fa-solid fa-list-check me-1"></i> 嚴選純淨食材：</h6>
+              <ul class="small text-light mb-0 ps-3">
+                <li>秀明自然農法自家採種越光米 2 杯</li>
+                <li>完熟自然農法黑柿番茄 2 顆（去蒂劃十字）</li>
+                <li>冷壓初榨苦茶油 1 小匙、天然日曬海鹽 少許</li>
+              </ul>
+            </div>
+            
+            <p class="small text-light"><strong>料理心法：</strong>「越純淨的土地長出的作物，越不需要複雜的佐料。讓米粒吸飽番茄的天然水分，飯起鍋時灑上海鹽即可。」</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         TAB 5: UGC REVIEWS & COMMUNITY (食農心得牆)
+         ========================================== -->
+    <section id="tab-reviews" class="tab-pane-content" style="display:none;">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <h4 class="h5 fw-bold text-white mb-0"><i class="fa-solid fa-heart text-danger me-2"></i>食農心得與感官評價</h4>
+          <p class="text-muted small mb-0">參加者親身體驗分享 · 純淨風味感官評分</p>
+        </div>
+        <button class="btn btn-primary-custom btn-sm interactive" onclick="openReviewModal()">
+          <i class="fa-solid fa-pen-nib me-1"></i> 寫心得賺積分 (+50 pts)
+        </button>
+      </div>
+
+      <div id="reviewsGrid" class="row g-3">
+        <!-- Dynamically rendered by JS -->
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ==========================================
+       ALL FULLY FUNCTIONAL INTERACTIVE MODALS
+       ========================================== -->
+
+  <!-- 1. Smart Booking Modal -->
+  <div class="modal fade" id="bookingModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content farm-modal-dialog">
+        <div class="farm-modal-header d-flex justify-content-between align-items-center">
+          <h5 class="modal-title fw-bold text-white" id="bookingModalTitle">活動預約</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="farm-modal-body">
+          <form id="bookingForm" onsubmit="submitBooking(event)">
+            <input type="hidden" id="bookEventId">
+            
+            <div class="mb-3">
+              <label class="form-label small text-light">選擇活動梯次：</label>
+              <select id="bookSessionSelect" class="form-select bg-dark text-light border-secondary" required>
+                <!-- Session options loaded dynamically -->
+              </select>
+            </div>
+
+            <div class="row g-2 mb-3">
+              <div class="col-6">
+                <label class="form-label small text-light">預約姓名：</label>
+                <input type="text" id="bookUserName" class="form-control" placeholder="請輸入姓名" required>
+              </div>
+              <div class="col-6">
+                <label class="form-label small text-light">聯絡電話：</label>
+                <input type="tel" id="bookUserPhone" class="form-control" placeholder="09xx-xxx-xxx" required>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label small text-light">電子信箱 (收取 QR Code 票券)：</label>
+              <input type="email" id="bookUserEmail" class="form-control" placeholder="example@email.com" required>
+            </div>
+
+            <div class="row g-2 mb-3 align-items-center">
+              <div class="col-6">
+                <label class="form-label small text-light">報名人數：</label>
+                <input type="number" id="bookHeadcount" class="form-control" min="1" max="5" value="1" required>
+              </div>
+              <div class="col-6">
+                <div class="form-check mt-4">
+                  <input class="form-check-input" type="checkbox" id="bookUtensils" checked>
+                  <label class="form-check-label small text-success fw-bold" for="bookUtensils">
+                    自備環保餐具 (+20 Karma)
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label small text-light">付款 / 保證金繳納方式：</label>
+              <div class="row g-2">
+                <div class="col-4">
+                  <input type="radio" class="btn-check" name="paymentMethod" id="payLinePay" value="linepay" checked>
+                  <label class="btn btn-outline-success btn-sm w-100 py-2 d-flex flex-column align-items-center justify-content-center" for="payLinePay">
+                    <i class="fa-brands fa-line text-success fs-5 mb-1"></i>
+                    <span style="font-size: 0.75rem;">LINE Pay</span>
+                  </label>
+                </div>
+                <div class="col-4">
+                  <input type="radio" class="btn-check" name="paymentMethod" id="payNewebPay" value="newebpay">
+                  <label class="btn btn-outline-info btn-sm w-100 py-2 d-flex flex-column align-items-center justify-content-center" for="payNewebPay">
+                    <i class="fa-solid fa-credit-card text-info fs-5 mb-1"></i>
+                    <span style="font-size: 0.75rem;">藍新 / 信用卡</span>
+                  </label>
+                </div>
+                <div class="col-4">
+                  <input type="radio" class="btn-check" name="paymentMethod" id="payOnsite" value="onsite">
+                  <label class="btn btn-outline-warning btn-sm w-100 py-2 d-flex flex-column align-items-center justify-content-center" for="payOnsite">
+                    <i class="fa-solid fa-hand-holding-dollar text-warning fs-5 mb-1"></i>
+                    <span style="font-size: 0.75rem;">現場收退費</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div class="p-3 rounded-3 bg-dark bg-opacity-50 border border-secondary mb-3 small text-muted">
+              <i class="fa-solid fa-circle-info text-warning me-1"></i>
+              預約成功後將自動產生「專屬報到 QR Code」，同步寄發確認信與 .ics 行事曆。若該梯次已額滿，系統將自動為您排入候補名單。
+            </div>
+
+            <button type="submit" id="btnSubmitBooking" class="btn btn-primary-custom w-100 interactive py-2">
+              <i class="fa-solid fa-check-circle me-1"></i> 確認送出報名 / 前往結帳
+            </button>
+          </form>
+
+          <!-- Booking Success View -->
+          <div id="bookingSuccessView" style="display:none;" class="text-center py-3">
+            <div class="text-success fs-1 mb-2"><i class="fa-solid fa-circle-check"></i></div>
+            <h4 class="fw-bold text-white mb-1">報名成功！</h4>
+            <p class="text-muted small mb-3" id="bookingSuccessSubtitle">您的報到 QR Code 已產生，現場出示即可快速核銷</p>
+            
+            <div class="p-3 bg-white rounded-4 d-inline-block shadow-lg mb-3">
+              <div id="bookingQrCodeContainer"></div>
+            </div>
+
+            <div class="text-light small mb-3">
+              票券 Token: <code id="bookingTokenDisplay" class="text-warning fw-bold"></code>
+            </div>
+
+            <div class="d-flex justify-content-center gap-2">
+              <button class="btn btn-sm btn-outline-light rounded-pill interactive" onclick="downloadIcsFile()">
+                <i class="fa-regular fa-calendar-plus me-1"></i> 下載 .ics 行事曆
+              </button>
+              <button class="btn btn-sm btn-success rounded-pill interactive" data-bs-dismiss="modal">
+                完成並返回
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. My Bookings Modal -->
+  <div class="modal fade" id="myBookingsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content farm-modal-dialog">
+        <div class="farm-modal-header d-flex justify-content-between align-items-center">
+          <h5 class="modal-title fw-bold text-white"><i class="fa-solid fa-ticket text-warning me-2"></i>我的活動預約清單</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="farm-modal-body">
+          <div id="myBookingsList">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. Seeder Karma Modal (With Vouchers & Live Redemption) -->
+  <div class="modal fade" id="karmaModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content farm-modal-dialog">
+        <div class="farm-modal-header d-flex justify-content-between align-items-center">
+          <h5 class="modal-title fw-bold text-white"><i class="fa-solid fa-seedling text-warning me-2"></i>綠色播種者點數與兌換專區</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="farm-modal-body">
+          <div class="text-center py-2 mb-3">
+            <div class="display-5 fw-bold text-warning mb-1" id="modalKarmaCount">380</div>
+            <p class="text-light small">目前累積綠色點數 (累積減碳 14.2 kg)</p>
+          </div>
+
+          <div class="row g-3 mb-4">
+            <div class="col-md-6">
+              <h6 class="fw-bold text-success mb-2"><i class="fa-solid fa-gift me-1"></i> 可兌換純淨回饋：</h6>
+              <div class="p-2 rounded-3 bg-dark bg-opacity-50 border border-secondary mb-2 d-flex justify-content-between align-items-center">
+                <div>
+                  <div class="fw-bold text-white small">自家採種第 12 代越光米種子包</div>
+                  <div class="text-muted" style="font-size: 0.75rem;">限量 50 份 · 需 200 點</div>
+                </div>
+                <button class="btn btn-sm btn-outline-warning rounded-pill interactive" onclick="redeemKarmaReward('自家採種種子包', 200)">立即兌換</button>
+              </div>
+              <div class="p-2 rounded-3 bg-dark bg-opacity-50 border border-secondary mb-2 d-flex justify-content-between align-items-center">
+                <div>
+                  <div class="fw-bold text-white small">光之餐桌 優先訂席保留券</div>
+                  <div class="text-muted" style="font-size: 0.75rem;">免排隊專屬席 · 需 300 點</div>
+                </div>
+                <button class="btn btn-sm btn-outline-warning rounded-pill interactive" onclick="redeemKarmaReward('光之餐桌優先席', 300)">立即兌換</button>
+              </div>
+            </div>
+
+            <!-- Redeemed Vouchers Box -->
+            <div class="col-md-6">
+              <h6 class="fw-bold text-info mb-2"><i class="fa-solid fa-wallet me-1"></i> 我的兌換券匣 (My Vouchers)：</h6>
+              <div id="myVouchersList" class="p-2 rounded-3 bg-dark bg-opacity-50 border border-info border-opacity-25 small" style="min-height: 120px;">
+                <div class="text-muted text-center py-4">尚未兌換任何禮品，快累積點數兌換吧！</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. UGC Review Submission Modal -->
+  <div class="modal fade" id="reviewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content farm-modal-dialog">
+        <div class="farm-modal-header d-flex justify-content-between align-items-center">
+          <h5 class="modal-title fw-bold text-white"><i class="fa-solid fa-pen-fancy text-success me-2"></i>發表食農心得</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="farm-modal-body">
+          <form onsubmit="submitReview(event)">
+            <div class="mb-3">
+              <label class="form-label small text-light">關聯活動：</label>
+              <select id="reviewEventSelect" class="form-select bg-dark text-light border-secondary">
+                <option value="event_dining_01">光之餐桌：初夏旬味無菜單料理</option>
+                <option value="event_farm_02">自然農法水稻插秧與奉仕日</option>
+                <option value="event_seed_03">水花園自然農法市集 & 自家採種工作坊</option>
+              </select>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label small text-light">您的稱呼：</label>
+              <input type="text" id="reviewAuthorName" class="form-control" placeholder="例：林小禾 / 台北食農愛好者" required>
+            </div>
+
+            <!-- Sensory 5-Star Ratings -->
+            <div class="mb-3 p-3 rounded-3 bg-dark bg-opacity-50 border border-secondary">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="small text-light">🍃 風味純淨度：</span>
+                <select id="ratingPurity" class="form-select form-select-sm w-auto bg-dark text-warning border-secondary">
+                  <option value="5">⭐⭐⭐⭐⭐ 5 星 (純淨無雜味)</option>
+                  <option value="4">⭐⭐⭐⭐ 4 星 (甘醇自然)</option>
+                  <option value="3">⭐⭐⭐ 3 星 (普通良好)</option>
+                </select>
+              </div>
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="small text-light">🌾 土地連結感：</span>
+                <select id="ratingConnection" class="form-select form-select-sm w-auto bg-dark text-warning border-secondary">
+                  <option value="5">⭐⭐⭐⭐⭐ 5 星 (深受感動)</option>
+                  <option value="4">⭐⭐⭐⭐ 4 星 (深刻體會)</option>
+                  <option value="3">⭐⭐⭐ 3 星 (良好體驗)</option>
+                </select>
+              </div>
+              <div class="d-flex justify-content-between align-items-center">
+                <span class="small text-light">🌟 整體活動體驗：</span>
+                <select id="ratingExperience" class="form-select form-select-sm w-auto bg-dark text-warning border-secondary">
+                  <option value="5">⭐⭐⭐⭐⭐ 5 星 (超出預期)</option>
+                  <option value="4">⭐⭐⭐⭐ 4 星 (非常滿意)</option>
+                  <option value="3">⭐⭐⭐ 3 星 (滿意)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label small text-light">心得感想與料理體驗：</label>
+              <textarea id="reviewContent" class="form-control" rows="3" placeholder="請分享您對作物的味覺感受、田間土壤觸感或料理感動..." required></textarea>
+            </div>
+
+            <button type="submit" class="btn btn-primary-custom w-100 interactive py-2">
+              <i class="fa-solid fa-paper-plane me-1"></i> 送出心得 (+50 Karma 點數)
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. Adopt Rice Bucket Modal (認養水稻專案) -->
+  <div class="modal fade" id="adoptRiceModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content farm-modal-dialog">
+        <div class="farm-modal-header d-flex justify-content-between align-items-center">
+          <h5 class="modal-title fw-bold text-white"><i class="fa-solid fa-seedling text-success me-2"></i>認養一桶自然農法水稻 (2026 夏收)</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="farm-modal-body">
+          <form onsubmit="submitAdoptRice(event)">
+            <div class="mb-3">
+              <label class="form-label small text-light">選擇認養方案：</label>
+              <select id="adoptPlanSelect" class="form-select bg-dark text-light border-secondary">
+                <option value="single">認養 1 桶水稻 (產出約 3kg 越光米) · NT$ 1,800</option>
+                <option value="double">認養 2 桶家庭組 (產出約 6kg + 自家採種種子) · NT$ 3,200</option>
+              </select>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label small text-light">示範田區位置：</label>
+              <select id="adoptFieldSelect" class="form-select bg-dark text-light border-secondary">
+                <option value="puli">南投埔里秀明示範園區 (陳大哥田區)</option>
+                <option value="yuanshan">宜蘭員山純淨水源田區 (林大姐田區)</option>
+              </select>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label small text-light">專屬木牌題字 (插於桶邊)：</label>
+              <input type="text" id="adoptPotName" class="form-control" placeholder="例：王家幸福稻穗 / 給大地的一封情書" required>
+            </div>
+
+            <div class="row g-2 mb-3">
+              <div class="col-6">
+                <label class="form-label small text-light">認養人姓名：</label>
+                <input type="text" id="adoptUserName" class="form-control" placeholder="姓名" required>
+              </div>
+              <div class="col-6">
+                <label class="form-label small text-light">聯絡電話：</label>
+                <input type="tel" id="adoptUserPhone" class="form-control" placeholder="電話" required>
+              </div>
+            </div>
+
+            <div class="p-3 rounded-3 bg-dark bg-opacity-50 border border-success border-opacity-25 small text-light mb-3">
+              <i class="fa-solid fa-gift text-warning me-1"></i>
+              認養成功將獲得：
+              <ul class="ps-3 mb-0 mt-1 text-muted">
+                <li>生長期間每週線上田間筆記與縮時推播</li>
+                <li>秋收日親臨田區體驗收割打穀免門票</li>
+                <li>獲贈 +100 Seeder Karma 點數</li>
+              </ul>
+            </div>
+
+            <button type="submit" class="btn btn-primary-custom w-100 interactive py-2">
+              <i class="fa-solid fa-check-circle me-1"></i> 確認送出認養登記
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. Timelapse Photos Lightbox Modal (五階段縮時相冊) -->
+  <div class="modal fade" id="timelapseModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content farm-modal-dialog">
+        <div class="farm-modal-header d-flex justify-content-between align-items-center">
+          <h5 class="modal-title fw-bold text-white"><i class="fa-solid fa-film text-warning me-2"></i>水稻五階段成長縮時紀錄 (Bucket #A-082)</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="farm-modal-body text-center">
+          <div id="timelapseCarousel" class="carousel slide" data-bs-ride="false">
+            <div class="carousel-inner rounded-4 shadow mb-3">
+              <div class="carousel-item active">
+                <img src="https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80" class="d-block w-100" style="max-height: 380px; object-fit: cover;">
+                <div class="p-3 bg-dark bg-opacity-75 text-light small">
+                  <strong>階段一：浸種與育苗 (4月上旬)</strong><br>
+                  自然農法專用溫湯消毒種子，不浸泡化學殺菌劑，苗株健康翠綠。
+                </div>
+              </div>
+              <div class="carousel-item">
+                <img src="https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=800&q=80" class="d-block w-100" style="max-height: 380px; object-fit: cover;">
+                <div class="p-3 bg-dark bg-opacity-75 text-light small">
+                  <strong>階段二：手工插秧與定植 (4月下旬)</strong><br>
+                  單本植法，秧苗間距加寬至 30 公分，通風透光根系深扎。
+                </div>
+              </div>
+              <div class="carousel-item">
+                <img src="https://images.unsplash.com/photo-1536657464919-892534f60d6e?auto=format&fit=crop&w=800&q=80" class="d-block w-100" style="max-height: 380px; object-fit: cover;">
+                <div class="p-3 bg-dark bg-opacity-75 text-light small">
+                  <strong>階段三：有效分櫱期 (5月中旬 現行)</strong><br>
+                  分櫱數達 16 枝，田區生態指標昆蟲活躍。
+                </div>
+              </div>
+            </div>
+            <button class="carousel-control-prev" type="button" data-bs-target="#timelapseCarousel" data-bs-slide="prev">
+              <span class="carousel-control-prev-icon"></span>
+            </button>
+            <button class="carousel-control-next" type="button" data-bs-target="#timelapseCarousel" data-bs-slide="next">
+              <span class="carousel-control-next-icon"></span>
+            </button>
+          </div>
+          <button class="btn btn-sm btn-outline-success rounded-pill px-4" data-bs-dismiss="modal">關閉瀏覽</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. Ask Farmer Interactive Modal (向農友提問) -->
+  <div class="modal fade" id="askFarmerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content farm-modal-dialog">
+        <div class="farm-modal-header d-flex justify-content-between align-items-center">
+          <h5 class="modal-title fw-bold text-white"><i class="fa-solid fa-comments text-info me-2"></i>向產地農友提問</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="farm-modal-body">
+          <form onsubmit="submitAskFarmer(event)">
+            <div class="mb-3">
+              <label class="form-label small text-light">提問農友：</label>
+              <input type="text" id="askFarmerName" class="form-control" value="陳志遠農友 (埔里示範園區)" readonly>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small text-light">問題主題類別：</label>
+              <select id="askFarmerTopic" class="form-select bg-dark text-light border-secondary">
+                <option value="farming">🌱 自然農法栽培與土壤微生態</option>
+                <option value="seed">🧬 自家採種與種子保存技術</option>
+                <option value="cooking">🍽️ 當令無添加料理烹調心法</option>
+                <option value="visit">🚜 田區參訪與志工奉仕細節</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small text-light">提問內容：</label>
+              <textarea id="askFarmerContent" class="form-control" rows="3" placeholder="請填寫您想請教的問題，農友將親自回覆..." required></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary-custom w-100 interactive py-2">
+              <i class="fa-solid fa-paper-plane me-1"></i> 送出提問
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8. Interactive Food Education Quiz Modal (食育小測驗) -->
+  <div class="modal fade" id="foodQuizModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content farm-modal-dialog">
+        <div class="farm-modal-header d-flex justify-content-between align-items-center">
+          <h5 class="modal-title fw-bold text-white"><i class="fa-solid fa-brain text-warning me-2"></i>自然農法食育小測驗</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="farm-modal-body">
+          <form onsubmit="submitFoodQuiz(event)">
+            <div class="mb-3 p-3 rounded-3 bg-dark bg-opacity-50 border border-secondary">
+              <p class="small text-white fw-bold mb-2">1. 秀明自然農法最核心的耕作原則是什麼？</p>
+              <div class="form-check mb-1">
+                <input class="form-check-input" type="radio" name="q1" id="q1a" value="correct" required>
+                <label class="form-check-label small text-light" for="q1a">無農藥、無化學肥料、自家採種</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="q1" id="q1b" value="wrong">
+                <label class="form-check-label small text-light" for="q1b">使用高濃度有機動物糞肥</label>
+              </div>
+            </div>
+
+            <div class="mb-3 p-3 rounded-3 bg-dark bg-opacity-50 border border-secondary">
+              <p class="small text-white fw-bold mb-2">2. 為何自然農法自家採種的作物根系能長得更深？</p>
+              <div class="form-check mb-1">
+                <input class="form-check-input" type="radio" name="q2" id="q2a" value="correct" required>
+                <label class="form-check-label small text-light" for="q2a">土壤無外來肥毒干擾，種子天性驅使根系深探水分與地力</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="q2" id="q2b" value="wrong">
+                <label class="form-check-label small text-light" for="q2b">因為人工大量澆灌生長調節劑</label>
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary-custom w-100 interactive py-2">
+              <i class="fa-solid fa-trophy me-1"></i> 提交答案領取 +20 Karma
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- QR Code Library & Bootstrap & Firebase -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  
+  <!-- Firebase Compatibility Libraries -->
+  <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-firestore-compat.js"></script>
+
+  <!-- Natural Farm Client Script -->
+  <script src="/js/natural-farm.js"></script>
+</body>
+</html>

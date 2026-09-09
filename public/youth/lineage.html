@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <title>青年部名單 - 靈線宇宙</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#0a0a0a">
+    <link rel="apple-touch-icon" href="/logo.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="icon" href="/logo.png" type="image/png">
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-F3w7mX95PdgyTmZZMECAngseQB83DfGTowi0iMjiWaeVhAn4FJkqJByhZMI3AhiU" crossorigin="anonymous">
+    <link rel="stylesheet" href="/css/app.css">
+    
+    <!-- 3D Force Graph library -->
+    <script src="https://unpkg.com/three@0.136.0/build/three.min.js"></script>
+    <script src="https://unpkg.com/3d-force-graph@1.43.5/dist/3d-force-graph.min.js"></script>
+
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background-color: #050510;
+        background-image: radial-gradient(circle at center, #0a0f25 0%, #020205 100%);
+      }
+      
+      #3d-graph {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: 1;
+      }
+
+      .app-header {
+        position: fixed;
+        background: rgba(10, 15, 37, 0.4);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        z-index: 100;
+        width: 100%;
+      }
+      .app-title { color: #fff; }
+
+      .bottom-nav {
+        background: rgba(10, 15, 37, 0.4);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      
+      .bottom-nav-item {
+        color: rgba(255, 255, 255, 0.5);
+      }
+      .bottom-nav-item.active {
+        color: #00F3FF;
+      }
+
+      /* 3D Node Label on hover */
+      .node-label {
+        color: #fff;
+        background: rgba(0, 0, 0, 0.7);
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-family: sans-serif;
+        font-size: 12px;
+        pointer-events: none;
+        border: 1px solid rgba(0, 243, 255, 0.3);
+      }
+
+      /* Detail overlay panel */
+      #node-detail-panel {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) scale(0.9);
+        width: 90%;
+        max-width: 340px;
+        z-index: 200;
+        opacity: 0;
+        pointer-events: none;
+        transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        background: rgba(15, 20, 45, 0.65);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(0, 243, 255, 0.3);
+        border-radius: 16px;
+        box-shadow: 0 10px 40px rgba(0, 243, 255, 0.1);
+        color: #fff;
+        padding: 24px;
+      }
+      #node-detail-panel.active {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+        pointer-events: all;
+      }
+      .node-detail-close {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        background: none;
+        border: none;
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 20px;
+      }
+      .node-detail-name {
+        font-size: 22px;
+        font-weight: 600;
+        margin-bottom: 4px;
+        color: #00F3FF;
+      }
+      .node-detail-meta {
+        font-size: 13px;
+        color: rgba(255, 255, 255, 0.7);
+        margin-bottom: 16px;
+        display: flex;
+        gap: 8px;
+      }
+      .node-detail-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 8px;
+        font-size: 14px;
+        border-bottom: 1px dashed rgba(255,255,255,0.1);
+        padding-bottom: 4px;
+      }
+      
+      /* UI Controls Overlay */
+      #controls-overlay {
+        position: fixed;
+        bottom: 80px;
+        right: 20px;
+        z-index: 100;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      @media (min-width: 769px) {
+        #controls-overlay {
+          bottom: 30px;
+        }
+      }
+      .control-btn {
+        width: 46px;
+        height: 46px;
+        border-radius: 50%;
+        background: rgba(15, 20, 45, 0.7);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(0, 243, 255, 0.4);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+        font-weight: bold;
+        font-size: 18px;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      .control-btn:active, .control-btn:hover {
+        background: rgba(0, 243, 255, 0.3);
+        border-color: #00F3FF;
+        transform: scale(1.08);
+      }
+      .control-btn.active {
+        background: rgba(0, 243, 255, 0.4);
+        border-color: #00F3FF;
+        box-shadow: 0 0 12px rgba(0, 243, 255, 0.6);
+      }
+
+      /* Quick Nav Drawer */
+      #nav-drawer-overlay {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        max-height: 75vh;
+        background: rgba(10, 15, 35, 0.95);
+        backdrop-filter: blur(25px);
+        -webkit-backdrop-filter: blur(25px);
+        border-top: 1px solid rgba(0, 243, 255, 0.3);
+        border-radius: 20px 20px 0 0;
+        z-index: 300;
+        transform: translateY(100%);
+        transition: transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        display: flex;
+        flex-direction: column;
+        padding: 20px;
+        color: #fff;
+        box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.6);
+      }
+      #nav-drawer-overlay.active {
+        transform: translateY(0);
+      }
+      .drawer-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-bottom: 12px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        margin-bottom: 12px;
+      }
+      .drawer-list {
+        overflow-y: auto;
+        flex: 1;
+        max-height: 55vh;
+      }
+      .drawer-group-title {
+        font-size: 13px;
+        font-weight: 600;
+        color: #00F3FF;
+        margin: 12px 0 6px 0;
+        letter-spacing: 1px;
+      }
+      .drawer-item {
+        padding: 10px 14px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        margin-bottom: 6px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+      .drawer-item:active, .drawer-item:hover {
+        background: rgba(0, 243, 255, 0.2);
+        border-color: rgba(0, 243, 255, 0.4);
+      }
+      
+      .loading-overlay {
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: #050510;
+        z-index: 1000;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: #00F3FF;
+        transition: opacity 0.5s;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Loading Screen -->
+    <div id="loading" class="loading-overlay">
+      <div class="spinner-border text-info" style="width: 3rem; height: 3rem;" role="status"></div>
+      <div class="mt-3" style="letter-spacing: 2px;">建構 3D 靈線宇宙中...</div>
+    </div>
+
+    <!-- App Header -->
+    <header class="app-header">
+      <h1 class="app-title">
+        <img onclick="this.classList.toggle('zoomed')" class="logo-zoomable" src="/logo.png" alt="Logo" style="filter: drop-shadow(0 0 5px #00F3FF) brightness(2);">
+        <span style="text-shadow: 0 0 10px rgba(0,243,255,0.5);">靈線宇宙</span>
+      </h1>
+      <!-- Desktop navigation -->
+      <div class="app-header-nav desktop-only">
+        <a href="list.html" class="bottom-nav-item" style="flex: none; flex-direction: row; gap: 4px;">名單</a>
+        <a href="group.html" class="bottom-nav-item" style="flex: none; flex-direction: row; gap: 4px;">分組</a>
+        <a href="seminar.html" class="bottom-nav-item" style="flex: none; flex-direction: row; gap: 4px;">座談會</a>
+        <a href="lineage.html" class="bottom-nav-item active" style="flex: none; flex-direction: row; gap: 4px;">靈線</a>
+        <button onclick="window.location.href='index.html'" class="bottom-nav-item" style="flex: none; flex-direction: row; gap: 4px; background: none; border: none;">首頁</button>
+      </div>
+    </header>
+
+    <!-- 3D Force Graph Container -->
+    <div id="3d-graph"></div>
+
+    <!-- Search & Quick Nav Bar Overlay -->
+    <div id="search-overlay" class="glass-card noise-overlay" style="position: fixed; top: 70px; left: 50%; transform: translateX(-50%); z-index: 100; width: 92%; max-width: 420px; padding: 8px 12px; border-radius: 14px; display: flex; align-items: center; gap: 8px; border: 1px solid rgba(0, 243, 255, 0.3);">
+      <span style="background: transparent; border: none; padding-right: 4px; color: var(--text-muted); flex-shrink: 0;">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+      </span>
+      <input type="text" id="search-node" class="form-control" placeholder="搜尋青年姓名..." style="border: none; background: transparent; color: white; box-shadow: none; font-size: 14px;" oninput="handleSearch(event)" onblur="setTimeout(() => document.getElementById('search-results').style.display = 'none', 200)">
+      
+      <!-- Quick Nav Drawer Toggle Button -->
+      <button class="btn btn-sm btn-outline-info text-nowrap interactive" onclick="toggleNavDrawer()" style="border-radius: 8px; font-size: 12px; padding: 4px 10px; flex-shrink: 0; background: rgba(0,243,255,0.1); border-color: rgba(0,243,255,0.4); color: #00F3FF;">
+        📑 清單導覽
+      </button>
+
+      <div id="search-results" style="position: absolute; top: 100%; left: 0; width: 100%; background: rgba(15, 20, 45, 0.95); backdrop-filter: blur(15px); border-radius: 10px; margin-top: 6px; max-height: 250px; overflow-y: auto; display: none; border: 1px solid rgba(0,243,255,0.3); z-index: 150;"></div>
+    </div>
+
+    <!-- Touch Controls Overlay (+ / - / Auto Rotate / Recenter) -->
+    <div id="controls-overlay" style="pointer-events: auto; z-index: 250;">
+      <button class="control-btn" id="btn-zoom-in" onclick="zoomGraph(0.7)" onpointerdown="event.stopPropagation();" title="放大">＋</button>
+      <button class="control-btn" id="btn-zoom-out" onclick="zoomGraph(1.4)" onpointerdown="event.stopPropagation();" title="縮小">－</button>
+      <button class="control-btn" id="btn-rotate" onclick="toggleAutoRotate()" onpointerdown="event.stopPropagation();" title="自動旋轉">🔄</button>
+      <button class="control-btn" id="btn-recenter" onclick="recenterGraph()" onpointerdown="event.stopPropagation();" title="重置視角">🎯</button>
+    </div>
+
+    <!-- Quick Navigation Drawer Overlay -->
+    <div id="nav-drawer-overlay">
+      <div class="drawer-header">
+        <h5 style="margin: 0; font-weight: 600; color: #00F3FF; font-size: 16px;">📑 靈線名單快速導覽</h5>
+        <button onclick="toggleNavDrawer()" style="background: none; border: none; color: rgba(255,255,255,0.6); font-size: 22px;">×</button>
+      </div>
+      <div class="drawer-list" id="drawer-member-list">
+        <!-- Dynamically populated group and member list -->
+      </div>
+    </div>
+
+    <!-- Node Detail Panel (Glassmorphism Modal) -->
+    <div id="node-detail-panel">
+      <button class="node-detail-close" onclick="closeNodeDetail()">×</button>
+      <div class="node-detail-name" id="detail-name">載入中...</div>
+      <div class="node-detail-meta" id="detail-meta">
+        <span class="badge bg-secondary" id="detail-part">青年部</span>
+        <span class="badge bg-info text-dark" id="detail-connect">接觸</span>
+      </div>
+      <div class="node-detail-row">
+        <span style="color: rgba(255,255,255,0.6);">介紹人</span>
+        <span id="detail-guide">-</span>
+      </div>
+      <div class="node-detail-row">
+        <span style="color: rgba(255,255,255,0.6);">入信日期</span>
+        <span id="detail-join">-</span>
+      </div>
+      <div class="node-detail-row">
+        <span style="color: rgba(255,255,255,0.6);">世話人</span>
+        <span id="detail-sewa">-</span>
+      </div>
+      <div class="node-detail-row">
+        <span style="color: rgba(255,255,255,0.6);">組長</span>
+        <span id="detail-leader">-</span>
+      </div>
+      <div class="mt-3 pt-2" style="border-top: 1px solid rgba(255,255,255,0.1); font-size: 13px; color: rgba(255,255,255,0.8);">
+        <strong>備註:</strong> <span id="detail-note">-</span>
+      </div>
+    </div>
+
+    <!-- Bottom Navigation for Mobile -->
+    <nav class="bottom-nav mobile-only">
+      <a href="list.html" class="bottom-nav-item">
+        <svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>
+        <span>名單</span>
+      </a>
+      <a href="group.html" class="bottom-nav-item">
+        <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+        <span>分組</span>
+      </a>
+      <a href="seminar.html" class="bottom-nav-item">
+        <svg viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/></svg>
+        <span>座談會</span>
+      </a>
+      <a href="lineage.html" class="bottom-nav-item active">
+        <svg viewBox="0 0 24 24"><path d="M16 11c1.5 0 2.79-1.02 3-2.39L22.5 12 19 15.39c-.21-1.37-1.5-2.39-3-2.39-1.66 0-3 1.34-3 3s1.34 3 3 3c1.37 0 2.53-.93 2.87-2.18L24 12l-5.13-4.82C18.53 5.93 17.37 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 3-1.34 3-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zM2.87 14.82c-.34-1.25-1.5-2.18-2.87-2.18v-1.28c1.37 0 2.53-.93 2.87-2.18L8 12l-5.13 4.82zM12 12c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3z"/></svg>
+        <span>靈線</span>
+      </a>
+    </nav>
+
+    <!-- Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-firestore-compat.js"></script>
+    <script src="/js/lineage.js"></script>
+  </body>
+</html>

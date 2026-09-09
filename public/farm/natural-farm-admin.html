@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>神慈秀明會 - 自然農法活動營運管理後台</title>
+  
+  <!-- PWA & Meta settings -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0d2818">
+  <link rel="icon" href="/logo.png" type="image/png">
+
+  <!-- Google Fonts & Bootstrap 5 & FontAwesome -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- App & Natural Farm CSS -->
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/natural-farm.css">
+</head>
+<body class="natural-farm-body">
+
+  <!-- Global Glass Toast Notification Container -->
+  <div id="toastContainer" class="position-fixed top-0 start-50 translate-middle-x p-3" style="z-index: 99999; max-width: 90vw; width: 420px;"></div>
+
+  <!-- Admin Top Bar -->
+  <header class="farm-top-nav">
+    <div class="container-fluid d-flex justify-content-between align-items-center px-3 px-lg-4">
+      <div class="d-flex align-items-center gap-3">
+        <a href="/farm/natural-farm-admin.html" class="farm-brand">
+          <div class="farm-brand-logo">
+            <img src="/logo.png" alt="Shumei Logo">
+          </div>
+          <div>
+            <div style="font-size: 1.05rem; font-weight: 700; color: #fff;">自然農法營運後台</div>
+            <div style="font-size: 0.72rem; color: var(--farm-cyan-neon); font-weight: 600;">Operations & Admin Portal</div>
+          </div>
+        </a>
+      </div>
+
+      <!-- Role Selector & External Links -->
+      <div class="d-flex align-items-center gap-2">
+        <div class="d-flex align-items-center bg-dark bg-opacity-75 px-3 py-1 rounded-pill border border-secondary">
+          <i class="fa-solid fa-user-shield text-warning me-2"></i>
+          <select id="adminRoleSelect" class="bg-transparent border-0 text-light small fw-bold py-0" onchange="changeAdminRole(this.value)">
+            <option value="super_admin">超級管理員 (Super Admin)</option>
+            <option value="organizer">活動主辦者 (Event Organizer)</option>
+            <option value="farmer">農場/餐廳夥伴 (Farmer/Partner)</option>
+          </select>
+        </div>
+        <a href="/farm/natural-farm.html" target="_blank" class="btn btn-sm btn-outline-success rounded-pill px-3 py-1 interactive">
+          <i class="fa-solid fa-arrow-up-right-from-square me-1"></i> 預覽前台
+        </a>
+        <a href="/youth/admin.html" class="btn btn-sm btn-secondary-custom rounded-pill px-2 px-md-3 py-1 text-decoration-none">
+          <i class="fa-solid fa-users me-1"></i> <span class="d-none d-md-inline">青年系統</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Admin Main Layout -->
+  <div class="container-fluid">
+    <div class="row">
+      
+      <!-- Sidebar Navigation -->
+      <nav class="col-md-3 col-lg-2 admin-sidebar">
+        <div class="d-flex flex-column gap-1">
+          <a class="admin-nav-link active" onclick="switchAdminTab('analytics', this)">
+            <i class="fa-solid fa-chart-pie"></i> 數據分析看板
+          </a>
+          <a class="admin-nav-link" onclick="switchAdminTab('events', this)">
+            <i class="fa-solid fa-calendar-plus"></i> 活動與梯次管理
+          </a>
+          <a class="admin-nav-link" onclick="switchAdminTab('checkin', this)">
+            <i class="fa-solid fa-qrcode"></i> 名冊與掃碼核銷
+          </a>
+          <a class="admin-nav-link" onclick="switchAdminTab('cms', this)">
+            <i class="fa-solid fa-pen-to-square"></i> 內容與心得審核
+          </a>
+          <a class="admin-nav-link" onclick="switchAdminTab('volunteers', this)">
+            <i class="fa-solid fa-people-carry-box"></i> 志工人才庫 CRM
+          </a>
+        </div>
+
+        <hr class="border-secondary my-4">
+
+        <div class="p-3 rounded-3 bg-dark bg-opacity-50 border border-success border-opacity-25 small text-muted">
+          <div class="text-success fw-bold mb-1"><i class="fa-solid fa-database me-1"></i> Firestore 狀態</div>
+          <div>專案：<code>shumei-2025</code></div>
+          <div>集合：<code>natural_*</code></div>
+          <div class="text-light mt-1"><span class="badge bg-success rounded-pill">連線正常 (Online)</span></div>
+        </div>
+      </nav>
+
+      <!-- Main Content Area -->
+      <main class="col-md-9 col-lg-10 py-4 px-3 px-md-4">
+
+        <!-- ==========================================
+             TAB 1: ANALYTICS & INSIGHTS (數據決策看板)
+             ========================================== -->
+        <section id="admin-tab-analytics" class="admin-tab-content">
+          <div class="d-flex justify-content-between align-items-center mb-4">
+            <h3 class="h4 fw-bold text-white mb-0"><i class="fa-solid fa-chart-line text-success me-2"></i>營運關鍵指標 (KPIs & Sustainability)</h3>
+            <span class="text-muted small"><i class="fa-solid fa-rotate me-1"></i>即時更新中</span>
+          </div>
+
+          <!-- KPI Metric Cards -->
+          <div class="row g-3 mb-4">
+            <div class="col-sm-6 col-xl-3">
+              <div class="farm-card p-3 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <span class="text-muted small">總預約人次</span>
+                  <i class="fa-solid fa-ticket text-warning fs-4"></i>
+                </div>
+                <div class="display-6 fw-bold text-white mb-1" id="kpiTotalBookings">115 <span class="fs-6 text-success fw-normal">+18% ↗</span></div>
+                <div class="small text-muted">本月 4 場活動累計</div>
+              </div>
+            </div>
+
+            <div class="col-sm-6 col-xl-3">
+              <div class="farm-card p-3 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <span class="text-muted small">現場報到出席率</span>
+                  <i class="fa-solid fa-user-check text-success fs-4"></i>
+                </div>
+                <div class="display-6 fw-bold text-white mb-1">94.2%</div>
+                <div class="small text-success"><i class="fa-solid fa-shield-check me-1"></i>爽約率僅 5.8%</div>
+              </div>
+            </div>
+
+            <div class="col-sm-6 col-xl-3">
+              <div class="farm-card p-3 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <span class="text-muted small">自備餐具響應率</span>
+                  <i class="fa-solid fa-leaf text-success fs-4"></i>
+                </div>
+                <div class="display-6 fw-bold text-white mb-1">88.6%</div>
+                <div class="small text-light">累計減塑 480 件一次性餐具</div>
+              </div>
+            </div>
+
+            <div class="col-sm-6 col-xl-3">
+              <div class="farm-card p-3 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <span class="text-muted small">自家採種保種面積</span>
+                  <i class="fa-solid fa-dna text-info fs-4"></i>
+                </div>
+                <div class="display-6 fw-bold text-white mb-1">3.2 <span class="fs-6 text-light fw-normal">公頃</span></div>
+                <div class="small text-muted">包含越光米第 12 代與黑豆</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Charts Row -->
+          <div class="row g-4 mb-4">
+            <div class="col-lg-7">
+              <div class="farm-card p-4">
+                <h5 class="fw-bold text-white mb-3"><i class="fa-solid fa-chart-column me-2 text-warning"></i>各活動預約與出席人數分佈</h5>
+                <canvas id="kpiBarChart" height="220"></canvas>
+              </div>
+            </div>
+            <div class="col-lg-5">
+              <div class="farm-card p-4">
+                <h5 class="fw-bold text-white mb-3"><i class="fa-solid fa-chart-pie me-2 text-info"></i>參與者類別與回訪分佈</h5>
+                <canvas id="kpiPieChart" height="220"></canvas>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==========================================
+             TAB 2: EVENT MANAGEMENT (活動與梯次管理)
+             ========================================== -->
+        <section id="admin-tab-events" class="admin-tab-content" style="display:none;">
+          <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+              <h3 class="h4 fw-bold text-white mb-0"><i class="fa-solid fa-calendar-days text-success me-2"></i>活動發布與梯次排程管理</h3>
+              <p class="text-muted small mb-0">視覺化編輯活動內容、控管名額上限與候補機制</p>
+            </div>
+            <button class="btn btn-primary-custom interactive" onclick="openCreateEventModal()">
+              <i class="fa-solid fa-plus me-1"></i> 發布新活動
+            </button>
+          </div>
+
+          <!-- Event Table -->
+          <div class="farm-card p-0 overflow-hidden">
+            <div class="table-responsive">
+              <table class="table table-dark table-hover align-middle mb-0">
+                <thead class="table-secondary text-light">
+                  <tr>
+                    <th>活動名稱</th>
+                    <th>類別</th>
+                    <th>梯次與名額</th>
+                    <th>收費/保證金</th>
+                    <th>狀態</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="adminEventsTableBody">
+                  <!-- Dynamically Rendered by JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==========================================
+             TAB 3: BOOKING ROSTER & QR CHECK-IN (名冊與掃碼核銷)
+             ========================================== -->
+        <section id="admin-tab-checkin" class="admin-tab-content" style="display:none;">
+          <div class="row g-4">
+            
+            <!-- Left Side: Live QR Camera Scanner -->
+            <div class="col-lg-5">
+              <div class="farm-card">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <h5 class="fw-bold text-white mb-0"><i class="fa-solid fa-camera text-info me-2"></i>現場 WebCam 掃碼核銷</h5>
+                  <span class="badge bg-success rounded-pill">Scanner Active</span>
+                </div>
+                <p class="text-muted small mb-3">開啟手機鏡頭或電腦 WebCam，對準報名者的專屬 QR Code 即可瞬間完成報到！</p>
+
+                <!-- Scanner Viewport Container -->
+                <div class="scanner-viewport position-relative mb-3">
+                  <div class="scanner-laser"></div>
+                  <div id="qr-reader" style="width: 100%; height: 100%;"></div>
+                </div>
+
+                <!-- Manual Token Input -->
+                <div class="input-group mb-3">
+                  <input type="text" id="manualTokenInput" class="form-control" placeholder="或手動輸入 Token (例: SHUMEI-NF-...)">
+                  <button class="btn btn-primary-custom" onclick="manualCheckIn()">核銷簽到</button>
+                </div>
+
+                <!-- Last Scanned Result Box -->
+                <div id="scanResultBox" class="p-3 rounded-3 bg-dark bg-opacity-75 border border-success border-opacity-50" style="display:none;">
+                  <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="text-success fw-bold"><i class="fa-solid fa-circle-check me-1"></i> 核銷成功！</span>
+                    <span class="badge bg-warning text-dark">+40 Karma 點數已發放</span>
+                  </div>
+                  <div class="text-white small fw-bold" id="scannedPersonName">王大明 (2位)</div>
+                  <div class="text-muted small" id="scannedEventTitle">光之餐桌：初夏旬味</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Side: Booking Roster & Broadcast -->
+            <div class="col-lg-7">
+              <div class="farm-card">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                  <div>
+                    <h5 class="fw-bold text-white mb-0"><i class="fa-solid fa-list-check text-warning me-2"></i>即時報名名冊總覽</h5>
+                  </div>
+                  <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-info rounded-pill interactive" onclick="openBroadcastModal()">
+                      <i class="fa-solid fa-bullhorn me-1"></i> 一鍵行前廣播
+                    </button>
+                    <button class="btn btn-sm btn-outline-light rounded-pill interactive" onclick="exportRosterCSV()">
+                      <i class="fa-solid fa-file-csv me-1"></i> 匯出 CSV
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Filter Controls -->
+                <div class="row g-2 mb-3">
+                  <div class="col-md-6">
+                    <input type="text" id="rosterSearchInput" class="form-control form-control-sm" placeholder="搜尋姓名、電話或 Token..." onkeyup="filterRosterTable()">
+                  </div>
+                  <div class="col-md-6">
+                    <select id="rosterStatusFilter" class="form-select form-select-sm bg-dark text-light border-secondary" onchange="filterRosterTable()">
+                      <option value="all">全部狀態 (已確認 / 候補 / 已核銷)</option>
+                      <option value="confirmed">已確認 (待報到)</option>
+                      <option value="checked_in">已核銷 (已報到)</option>
+                      <option value="waitlist">候補中</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Roster Table -->
+                <div class="table-responsive" style="max-height: 380px;">
+                  <table class="table table-dark table-sm table-hover align-middle mb-0">
+                    <thead class="table-secondary text-light">
+                      <tr>
+                        <th>姓名</th>
+                        <th>活動梯次</th>
+                        <th>人數</th>
+                        <th>自備餐具</th>
+                        <th>狀態</th>
+                        <th>操作</th>
+                      </tr>
+                    </thead>
+                    <tbody id="rosterTableBody">
+                      <!-- Rendered by JS -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- ==========================================
+             TAB 4: CMS & MODERATION (內容與心得審核)
+             ========================================== -->
+        <section id="admin-tab-cms" class="admin-tab-content" style="display:none;">
+          <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+              <h3 class="h4 fw-bold text-white mb-0"><i class="fa-solid fa-shield-cat text-warning me-2"></i>內容審核與評論管理</h3>
+              <p class="text-muted small mb-0">審核產地日誌、食農心得，支援置頂優質評論與敏感詞過濾</p>
+            </div>
+            <button class="btn btn-sm btn-outline-success rounded-pill interactive" onclick="openNewFeedModal()">
+              <i class="fa-solid fa-plus me-1"></i> 發布產地即時日誌
+            </button>
+          </div>
+
+          <div class="row g-4">
+            <div class="col-lg-6">
+              <div class="farm-card">
+                <h5 class="fw-bold text-white mb-3"><i class="fa-solid fa-comments text-info me-2"></i>食農心得審核牆</h5>
+                <div id="adminReviewModerationList">
+                  <!-- Rendered by JS -->
+                </div>
+              </div>
+            </div>
+
+            <div class="col-lg-6">
+              <div class="farm-card">
+                <h5 class="fw-bold text-white mb-3"><i class="fa-solid fa-wheat-awn text-success me-2"></i>產地即時日誌維護</h5>
+                <div id="adminFeedModerationList">
+                  <!-- Rendered by JS -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==========================================
+             TAB 5: VOLUNTEER CRM (志工人才庫 CRM)
+             ========================================== -->
+        <section id="admin-tab-volunteers" class="admin-tab-content" style="display:none;">
+          <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+              <h3 class="h4 fw-bold text-white mb-0"><i class="fa-solid fa-hand-holding-heart text-danger me-2"></i>志工與人才庫 CRM 看板</h3>
+              <p class="text-muted small mb-0">依專業標籤分類志工、追蹤奉仕時數與招募進度</p>
+            </div>
+            <button class="btn btn-primary-custom btn-sm interactive" onclick="openAddVolunteerModal()">
+              <i class="fa-solid fa-user-plus me-1"></i> 新增志工人才
+            </button>
+          </div>
+
+          <!-- Kanban Recruitment Pipeline -->
+          <div class="row g-3" id="kanbanPipelineContainer">
+            <!-- Rendered dynamically by JS -->
+          </div>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- ==========================================
+       ALL FULLY FUNCTIONAL ADMIN MODALS
+       ========================================== -->
+
+  <!-- 1. Create Event Modal -->
+  <div class="modal fade" id="createEventModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content farm-modal-dialog">
+        <div class="farm-modal-header d-flex justify-content-between align-items-center">
+          <h5 class="modal-title fw-bold text-white"><i class="fa-solid fa-calendar-plus text-success me-2"></i>發布全新自然農法活動</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="farm-modal-body">
+          <form id="createEventForm" onsubmit="submitCreateEvent(event)">
+            <div class="mb-3">
+              <label class="form-label small text-light">活動標題：</label>
+              <input type="text" id="newEventTitle" class="form-control" placeholder="例：夏日自然農法水稻收割與打穀體驗祭" required>
+            </div>
+
+            <div class="row g-2 mb-3">
+              <div class="col-6">
+                <label class="form-label small text-light">活動類別：</label>
+                <select id="newEventCategory" class="form-select bg-dark text-light border-secondary">
+                  <option value="farm_exp">🌱 農事體驗</option>
+                  <option value="dining">🍽️ 餐桌料理</option>
+                  <option value="market">🧺 市集出攤</option>
+                  <option value="seed_saving">🧬 保種工作坊</option>
+                </select>
+              </div>
+              <div class="col-6">
+                <label class="form-label small text-light">收費/保證金設定：</label>
+                <input type="text" id="newEventPricing" class="form-control" placeholder="例：免費公益 / NT$ 500 保證金" required>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label small text-light">封面照片 URL：</label>
+              <input type="url" id="newEventBannerUrl" class="form-control" value="https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=800&q=80" required>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label small text-light">活動地點與地圖資訊：</label>
+              <input type="text" id="newEventLocation" class="form-control" placeholder="例：南投縣埔里鎮示範園區" required>
+            </div>
+
+            <div class="row g-2 mb-3">
+              <div class="col-4">
+                <label class="form-label small text-light">梯次日期：</label>
+                <input type="date" id="newEventDate" class="form-control" required>
+              </div>
+              <div class="col-4">
+                <label class="form-label small text-light">時段：</label>
+                <input type="text" id="newEventTime" class="form-control" placeholder="09:00 - 12:00" required>
+              </div>
+              <div class="col-4">
+                <label class="form-label small text-light">名額上限：</label>
+                <input type="number" id="newEventMax" class="form-control" value="25" min="1" required>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label small text-light">活動詳情介紹 (Markdown / 文本)：</label>
+              <textarea id="newEventDesc" class="form-control" rows="3" placeholder="請填寫詳細行程、注意事項、自備餐具提醒..." required></textarea>
+            </div>
+
+            <button type="submit" class="btn btn-primary-custom w-100 py-2 interactive">
+              <i class="fa-solid fa-cloud-arrow-up me-1"></i> 即時發布至前台社群
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Edit Event Modal -->
+  <div class="modal fade" id="editEventModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content farm-modal-dialog">
+        <div class="farm-modal-header d-flex justify-content-between align-items-center">
+          <h5 class="modal-title fw-bold text-white"><i class="fa-solid fa-pen-to-square text-info me-2"></i>編輯活動資訊</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="farm-modal-body">
+          <form onsubmit="submitEditEvent(event)">
+            <input type="hidden" id="editEventId">
+            <div class="mb-3">
+              <label class="form-label small text-light">活動標題：</label>
+              <input type="text" id="editEventTitle" class="form-control" required>
+            </div>
+            <div class="row g-2 mb-3">
+              <div class="col-6">
+                <label class="form-label small text-light">收費/保證金設定：</label>
+                <input type="text" id="editEventPricing" class="form-control" required>
+              </div>
+              <div class="col-6">
+                <label class="form-label small text-light">狀態：</label>
+                <select id="editEventStatus" class="form-select bg-dark text-light border-secondary">
+                  <option value="已發布">已發布 (正常報名)</option>
+                  <option value="報名截止">報名截止 (停止收件)</option>
+                  <option value="已結束">已結束 (歷史存檔)</option>
+                </select>
+              </div>
+            </div>
+            <div class="row g-2 mb-3">
+              <div class="col-6">
+                <label class="form-label small text-light">梯次日期：</label>
+                <input type="text" id="editEventDate" class="form-control" required>
+              </div>
+              <div class="col-6">
+                <label class="form-label small text-light">名額上限：</label>
+                <input type="number" id="editEventMax" class="form-control" required>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary-custom w-100 py-2 interactive">
+              <i class="fa-solid fa-floppy-disk me-1"></i> 儲存變更
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. Broadcast Notification Modal -->
+  <div class="modal fade" id="broadcastModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content farm-modal-dialog">
+        <div class="farm-modal-header d-flex justify-content-between align-items-center">
+          <h5 class="modal-title fw-bold text-white"><i class="fa-solid fa-bullhorn text-warning me-2"></i>一鍵活動行前廣播發送</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="farm-modal-body">
+          <form onsubmit="submitBroadcast(event)">
+            <div class="mb-3">
+              <label class="form-label small text-light">發送管道 (可複選)：</label>
+              <div class="d-flex gap-3 text-light small mt-1">
+                <div class="form-check"><input class="form-check-input" type="checkbox" id="bcPush" checked><label class="form-check-label" for="bcPush">App 推播</label></div>
+                <div class="form-check"><input class="form-check-input" type="checkbox" id="bcEmail" checked><label class="form-check-label" for="bcEmail">Email</label></div>
+                <div class="form-check"><input class="form-check-input" type="checkbox" id="bcSms"><label class="form-check-label" for="bcSms">SMS 簡訊</label></div>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label small text-light">目標受眾：</label>
+              <select id="bcAudience" class="form-select bg-dark text-light border-secondary">
+                <option value="confirmed">僅已確認報名者 (共 <span id="bcConfirmedCount">3</span> 人)</option>
+                <option value="all">所有報名者 (含候補)</option>
+              </select>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label small text-light">廣播內容：</label>
+              <textarea id="bcContent" class="form-control" rows="4" required>【神慈秀明會】提醒您：明日活動請記得攜帶環保餐具與防曬衣物，現場報到請出示手機 QR Code 即可快速核銷！期待在田區與您相見。</textarea>
+            </div>
+
+            <button type="submit" class="btn btn-primary-custom w-100 py-2 interactive">
+              <i class="fa-solid fa-paper-plane me-1"></i> 即刻發送廣播
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. Volunteer Appreciation Certificate Modal -->
+  <div class="modal fade" id="volunteerCertModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content farm-modal-dialog">
+        <div class="farm-modal-header d-flex justify-content-between align-items-center">
+          <h5 class="modal-title fw-bold text-white"><i class="fa-solid fa-award text-warning me-2"></i>秀明自然農法 綠色奉仕榮譽感謝狀</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="farm-modal-body text-center">
+          <!-- Certificate Card Frame -->
+          <div class="p-4 p-md-5 rounded-4 shadow-lg mb-3" style="background: radial-gradient(circle, #fcfbf7 0%, #ede8dc 100%); color: #163824; border: 8px double #c99c35; position: relative;">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <img src="/logo.png" style="width: 55px; height: 55px;" alt="Logo">
+              <div class="badge bg-success px-3 py-1 rounded-pill" style="font-size: 0.8rem;">榮譽認證</div>
+            </div>
+            
+            <h2 class="fw-bold tracking-wide mb-1" style="font-family: 'Noto Sans TC', serif; color: #163824;">感謝狀</h2>
+            <p class="text-muted small mb-4">CERTIFICATE OF APPRECIATION</p>
+
+            <p class="fs-5 mb-3">茲感謝 志工夥伴 <strong class="text-success fs-3 text-decoration-underline" id="certVolunteerName">許雅琪</strong> 君</p>
+            <p class="lead small mb-4 text-dark" style="line-height: 1.8;">
+              熱忱投入秀明自然農法之農事體驗、保種工作坊與市集奉仕活動。<br>
+              累計無私奉獻時數達 <strong class="text-danger fs-4" id="certVolunteerHours">120</strong> 小時。<br>
+              特頒此狀，以表由衷謝忱與敬意。
+            </p>
+
+            <div class="d-flex justify-content-between align-items-end mt-4 pt-3 border-top border-secondary border-opacity-25 small">
+              <div class="text-start">
+                <div>證書編號：<code id="certSerialCode">SHUMEI-VOL-2026-8821</code></div>
+                <div>發放日期：<span id="certIssueDate">2026 年 05 月 15 日</span></div>
+              </div>
+              <div class="text-end">
+                <div class="fw-bold text-success fs-6">神慈秀明會 自然農法推廣組</div>
+                <div class="text-muted" style="font-size: 0.75rem;">SHUMEI NATURAL AGRICULTURE COMMITTEE</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-center gap-2">
+            <button class="btn btn-sm btn-success rounded-pill px-4 interactive" onclick="window.print()">
+              <i class="fa-solid fa-print me-1"></i> 列印 / 另存 PDF 證書
+            </button>
+            <button class="btn btn-sm btn-outline-light rounded-pill px-3" data-bs-dismiss="modal">
+              關閉
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. Add Volunteer Modal -->
+  <div class="modal fade" id="addVolunteerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content farm-modal-dialog">
+        <div class="farm-modal-header d-flex justify-content-between align-items-center">
+          <h5 class="modal-title fw-bold text-white"><i class="fa-solid fa-user-plus text-success me-2"></i>新增志工人才檔案</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="farm-modal-body">
+          <form onsubmit="submitAddVolunteer(event)">
+            <div class="mb-3">
+              <label class="form-label small text-light">志工姓名：</label>
+              <input type="text" id="addVolName" class="form-control" placeholder="請輸入姓名" required>
+            </div>
+
+            <div class="row g-2 mb-3">
+              <div class="col-6">
+                <label class="form-label small text-light">聯絡電話：</label>
+                <input type="tel" id="addVolPhone" class="form-control" placeholder="09xx-xxx-xxx" required>
+              </div>
+              <div class="col-6">
+                <label class="form-label small text-light">可服務時段：</label>
+                <select id="addVolTime" class="form-select bg-dark text-light border-secondary">
+                  <option value="weekend">僅假日活動</option>
+                  <option value="weekday">平日可配合</option>
+                  <option value="flexible">彈性皆可</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label small text-light">專長標籤：</label>
+              <input type="text" id="addVolSkills" class="form-control" placeholder="例：農事好手、攝影紀錄、料理烹飪" required>
+            </div>
+
+            <button type="submit" class="btn btn-primary-custom w-100 py-2 interactive">
+              <i class="fa-solid fa-plus-circle me-1"></i> 加入 CRM 招募隊列
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. New Farm Log Modal -->
+  <div class="modal fade" id="newFeedModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content farm-modal-dialog">
+        <div class="farm-modal-header d-flex justify-content-between align-items-center">
+          <h5 class="modal-title fw-bold text-white"><i class="fa-solid fa-pen-nib text-success me-2"></i>發布產地即時日誌</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="farm-modal-body">
+          <form onsubmit="submitNewFeed(event)">
+            <div class="mb-3">
+              <label class="form-label small text-light">日誌標題：</label>
+              <input type="text" id="newFeedTitle" class="form-control" placeholder="例：今日水稻分櫱期露水觀察" required>
+            </div>
+
+            <div class="row g-2 mb-3">
+              <div class="col-6">
+                <label class="form-label small text-light">發布農友：</label>
+                <input type="text" id="newFeedAuthor" class="form-control" value="陳志遠 (埔里示範園區)" required>
+              </div>
+              <div class="col-6">
+                <label class="form-label small text-light">當前節氣：</label>
+                <input type="text" id="newFeedTerm" class="form-control" value="立夏" required>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label small text-light">相片 URL：</label>
+              <input type="url" id="newFeedPhoto" class="form-control" value="https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=800&q=80" required>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label small text-light">日誌內文：</label>
+              <textarea id="newFeedContent" class="form-control" rows="3" placeholder="請記錄今日田間生態、氣候變化與作物長勢..." required></textarea>
+            </div>
+
+            <button type="submit" class="btn btn-primary-custom w-100 py-2 interactive">
+              <i class="fa-solid fa-cloud-arrow-up me-1"></i> 即刻發布至前台動態
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+
+  <!-- Firebase Compatibility Libraries -->
+  <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-firestore-compat.js"></script>
+
+  <!-- Natural Farm Admin Script -->
+  <script src="/js/natural-farm-admin.js"></script>
+</body>
+</html>

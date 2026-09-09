@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>種子交換會管理與自助選種系統</title>
+  
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="./css/app.css">
+  
+  <!-- Firebase compatibility libraries -->
+  <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-firestore-compat.js"></script>
+  
+  <!-- QR Code generation and optical scanning dependencies -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  
+  <style>
+    /* Custom premium overrides to match the user's styling policy */
+    .glow-cyan {
+      box-shadow: 0 0 15px rgba(0, 243, 255, 0.4);
+      border-color: #00F3FF !important;
+    }
+    .glow-amber {
+      box-shadow: 0 0 15px rgba(255, 161, 0, 0.4);
+      border-color: #FFA100 !important;
+    }
+    .tab-btn {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      color: var(--text-muted);
+      transition: all 0.3s cubic-bezier(0.15, 0.85, 0.35, 1);
+      cursor: pointer;
+    }
+    .tab-btn.active {
+      background: rgba(0, 243, 255, 0.2);
+      border-color: #00F3FF;
+      color: #00F3FF;
+      box-shadow: 0 0 10px rgba(0, 243, 255, 0.2);
+    }
+    .tab-btn:hover {
+      transform: scale(1.03);
+    }
+    .qr-container {
+      background: white;
+      padding: 10px;
+      border-radius: 8px;
+      display: inline-block;
+    }
+    #reader {
+      width: 100%;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--glass-border);
+    }
+    .badge-pill {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="app-header">
+    <div class="app-title">
+      <span style="font-size: 1.5rem;">🌱</span>
+      <div>
+        <h1 class="h5 m-0 font-weight-bold">秀明自然農法種子交換會</h1>
+        <p class="m-0 text-muted" style="font-size: 10px;">離線自助選種與物流核對系統</p>
+      </div>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <button id="btn-login" onclick="promptLogin()" class="btn btn-outline-light btn-sm rounded-pill text-[10px] font-bold">
+        工作人員登入
+      </button>
+      <div id="admin-badge" class="badge-pill glow-cyan d-none flex items-center gap-2">
+        <span>🛡️ 後台模式</span>
+        <a href="#" onclick="logout()" class="text-white ml-2 text-[10px]">登出</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="container py-4">
+    <!-- Public Navigation (Shown by default) -->
+    <div id="public-nav" class="row g-2 mb-4">
+      <div class="col-6">
+        <button onclick="switchTab('pub-entrance')" id="btn-pub-entrance" class="tab-btn w-full py-3 rounded-xl font-bold text-sm active">
+          👤 報到登記
+        </button>
+      </div>
+      <div class="col-6">
+        <button onclick="switchTab('select')" id="btn-pub-select" class="tab-btn w-full py-3 rounded-xl font-bold text-sm">
+          📱 開始選種
+        </button>
+      </div>
+    </div>
+
+    <!-- Admin Navigation Tabs (Hidden by default) -->
+    <div id="admin-nav" class="row g-2 mb-4 d-none">
+      <div class="col-4">
+        <button onclick="switchTab('staff-approval')" id="btn-staff-approval" class="tab-btn w-full py-3 rounded-xl font-bold text-sm active">
+          📥 1. 報到審核
+        </button>
+      </div>
+      <div class="col-4">
+        <button onclick="switchTab('packaging')" id="btn-packaging" class="tab-btn w-full py-3 rounded-xl font-bold text-sm">
+          🏷️ 2. 分裝貼標
+        </button>
+      </div>
+      <div class="col-4">
+        <button onclick="switchTab('exit')" id="btn-exit" class="tab-btn w-full py-3 rounded-xl font-bold text-sm">
+          📤 3. 出口核對
+        </button>
+      </div>
+    </div>
+
+    <!-- Active Tab Workspace -->
+    <main class="row">
+      <!-- 1. 民眾自助報到 Panel -->
+      <section id="panel-pub-entrance" class="col-12 tab-panel">
+        <div class="glass-card">
+          <h2 class="h4 font-bold text-white mb-3">民眾：自助登記基本資料</h2>
+          <p class="text-muted text-xs mb-4">請填寫您帶來的種子基本資料。提交後請將您的種子包交給服務台工作人員核對。</p>
+          <button type="button" onclick="mockGoogleLogin()" class="btn btn-light w-full py-3 flex items-center justify-center gap-2 font-bold rounded-xl mb-3">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" width="20" /> 使用 Google 帳號快速帶入資料
+          </button>
+          <div class="text-center py-2 relative mb-3">
+            <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-secondary/30"></div></div>
+            <span class="relative bg-glass px-3 text-muted text-xs">或手動填寫以下資料</span>
+          </div>
+          
+          <form onsubmit="selfRegister(event)" class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label text-xs font-bold">您的姓名 *</label>
+              <input type="text" id="self-name" required placeholder="例如：李大同" class="form-control bg-dark border-secondary text-white" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label text-xs font-bold">手機號碼 *</label>
+              <input type="tel" id="self-phone" required placeholder="例如：0912345678" class="form-control bg-dark border-secondary text-white" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label text-xs font-bold">帶來的種子名稱 *</label>
+              <input type="text" id="self-seed-name" required placeholder="例如：黑柿留種番茄" class="form-control bg-dark border-secondary text-white" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label text-xs font-bold">種子品種 (選填)</label>
+              <input type="text" id="self-seed-variety" placeholder="例如：茄科" class="form-control bg-dark border-secondary text-white" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label text-xs font-bold">攜帶總重量 (克) (選填)</label>
+              <input type="number" id="self-weight" placeholder="例如：100" class="form-control bg-dark border-secondary text-white" />
+            </div>
+            <div class="col-12">
+              <button type="submit" class="w-full btn btn-primary py-3 rounded-xl font-black text-sm interactive glow-cyan">
+                送出報到申請
+              </button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <!-- 2. 工作人員審核核發 Panel -->
+      <section id="panel-staff-approval" class="col-12 tab-panel d-none">
+        <div class="glass-card">
+          <h2 class="h4 font-bold text-white mb-3">工作人員：待核發報到名單</h2>
+          <p class="text-muted text-xs mb-4">核對民眾帶來的種子，手動輸入包數與核發兌換額度。</p>
+          
+          <div class="table-responsive">
+            <table class="table text-white align-middle" style="border-color: rgba(255,255,255,0.1);">
+              <thead>
+                <tr class="text-muted" style="font-size: 11px;">
+                  <th>姓名</th>
+                  <th>攜帶種子</th>
+                  <th>重量 (g)</th>
+                  <th>核定包數(可兌換額度)</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="pending-registration-list">
+                <!-- Dynamically rendered pending list -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. 分裝貼標 Panel -->
+      <section id="panel-packaging" class="col-12 tab-panel d-none">
+        <div class="glass-card">
+          <h2 class="h4 font-bold text-white mb-3">工作人員：種子分裝與二維碼貼標</h2>
+          <p class="text-muted text-xs mb-4">將民眾帶來的種子進行分裝成小包裝，並貼上唯一的二維碼貼紙以供選購掃描。</p>
+          
+          <div class="table-responsive">
+            <table class="table text-white align-middle" style="border-color: rgba(255,255,255,0.1);">
+              <thead>
+                <tr class="text-muted" style="font-size: 11px;">
+                  <th>來源民眾</th>
+                  <th>種子品名</th>
+                  <th>總重量</th>
+                  <th>核給額度</th>
+                  <th>實際分裝包數 (列印張數)</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="packaging-list">
+                <!-- Dynamically rendered -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Labels Print Preview Modal -->
+        <div id="labels-modal" class="glass-card mt-4 d-none">
+          <div class="flex items-center justify-between border-b border-secondary/20 pb-3 mb-4">
+            <h4 class="h5 font-bold text-white m-0">🏷️ 種子包標籤列印預覽</h4>
+            <button onclick="document.getElementById('labels-modal').classList.add('d-none')" class="btn-close btn-close-white"></button>
+          </div>
+          
+          <div id="labels-print-area" class="row g-3">
+            <!-- Dynamically generated labels with QR codes -->
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. 自助選種 Panel -->
+      <section id="panel-select" class="col-12 tab-panel d-none">
+        <div class="glass-card">
+          <h2 class="h4 font-bold text-white mb-3">參與民眾：掃描種子包 QR Code</h2>
+          <p class="text-muted text-xs mb-4">請先掃描或輸入您的「入場兌換券」載入額度，即可開始掃描欲拿取的種子包。</p>
+          
+          <!-- Step A: Choose Identity / Login -->
+          <div id="select-step-login" class="space-y-4">
+            <button type="button" onclick="mockGoogleLoginTab3()" class="btn btn-light w-full py-3 flex items-center justify-center gap-2 font-bold rounded-xl mb-4">
+              <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" width="20" /> 使用 Google 帳號登入選種
+            </button>
+            <div class="text-center py-2 relative mb-3">
+              <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-secondary/30"></div></div>
+              <span class="relative bg-glass px-3 text-muted text-xs">或從現場名單點選您的名字</span>
+            </div>
+            
+            <div class="mb-2">
+              <label class="form-label text-xs font-bold mb-3 block text-slate-300">請選擇您的報到名稱：</label>
+              <div id="active-participants-grid" class="row g-2">
+                <!-- rendered by renderActiveParticipantsTab3() -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Step B: Active Session Scanner -->
+          <div id="select-active-session" class="d-none space-y-4">
+            <div class="bg-gradient-to-r from-emerald-500/20 to-teal-500/10 border border-emerald-500/30 p-4 rounded-2xl flex items-center justify-between">
+              <div>
+                <h4 id="session-username" class="font-bold text-white text-md m-0"></h4>
+                <p id="session-quota" class="text-xs text-slate-400 mt-1 m-0"></p>
+              </div>
+              <button onclick="exitSession()" class="btn btn-outline-danger btn-xs py-1 px-2.5 rounded-lg text-[10px]">登出憑證</button>
+            </div>
+
+            <!-- Optical scanner box -->
+            <div id="scanner-container" class="d-none">
+              <div id="reader"></div>
+              <button onclick="stopQRScanner()" class="w-full btn btn-secondary btn-sm mt-2 rounded-lg">關閉相機</button>
+            </div>
+
+            <button id="btn-scan-bag" onclick="startQRScanner('bag')" class="w-full btn btn-primary py-3.5 rounded-2xl font-black text-sm interactive glow-cyan flex items-center justify-center gap-2">
+              📷 開啟相機掃描種子包二維碼
+            </button>
+
+            <!-- Scanned Cart List -->
+            <div class="border-t border-secondary/20 pt-4">
+              <h5 class="h6 text-white font-bold mb-3 flex items-center gap-1.5">🛒 已挑選的種子包</h5>
+              <div id="cart-list" class="space-y-2">
+                <!-- Dynamically populated cart items -->
+              </div>
+            </div>
+
+            <!-- Finish selection info -->
+            <div class="border-t border-secondary/20 pt-4 text-center">
+              <div class="bg-amber-500/10 border border-amber-500/30 p-3.5 rounded-xl text-center text-xs text-amber-200 leading-relaxed">
+                💡 <strong>選購完成提示</strong>：<br>
+                選好後不需要生成條碼，請直接攜帶選好的種子包前往出口處，向工作人員報上您的姓名，工作人員會直接在出口後台進行核對放行！
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. 出口核對 Panel -->
+      <section id="panel-exit" class="col-12 tab-panel d-none">
+        <div class="glass-card">
+          <h2 class="h4 font-bold text-white mb-3">出口工作人員：數量與種類核對關卡</h2>
+          <p class="text-muted text-xs mb-4">點選下方已挑選完畢的民眾，確認他們手機上已選取的種子包，與手上拿的實體包裝完全一致即可放行。</p>
+          
+          <div class="mb-4">
+            <label class="form-label text-xs font-bold mb-2.5 block text-slate-300">目前在會場選購的民眾名單 *</label>
+            <div id="exit-participants-list" class="row g-2">
+              <!-- list of active participant buttons -->
+            </div>
+          </div>
+          
+          <!-- Verification Result Details -->
+          <div id="exit-check-details" class="d-none border border-secondary/30 bg-dark/40 rounded-2xl p-4 space-y-4">
+            <div class="flex items-center justify-between border-b border-secondary/20 pb-3">
+              <div>
+                <h4 id="exit-user-name" class="font-bold text-white text-md m-0"></h4>
+                <p id="exit-ticket-id" class="text-xs text-muted m-0 font-mono"></p>
+              </div>
+              <span id="exit-status-badge" class="badge-pill bg-emerald-500/20 text-emerald-400">核對中</span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+              <div class="bg-dark/60 p-3 rounded-xl border border-secondary/20 text-center">
+                <span class="text-muted text-[10px] block font-bold">可兌換包數額度</span>
+                <strong id="exit-user-quota" class="text-2xl text-amber font-black block mt-1"></strong>
+              </div>
+              <div class="bg-dark/60 p-3 rounded-xl border border-secondary/20 text-center">
+                <span class="text-muted text-[10px] block font-bold">實際挑選包數</span>
+                <strong id="exit-actual-count" class="text-2xl text-cyan font-black block mt-1"></strong>
+              </div>
+            </div>
+
+            <div>
+              <h5 class="text-xs font-bold text-slate-300 mb-2">已挑選明細：</h5>
+              <div id="exit-cart-details" class="space-y-1.5">
+                <!-- list of selected bags -->
+              </div>
+            </div>
+
+            <!-- Approval action -->
+            <div class="pt-4 border-t border-secondary/20 flex gap-2">
+              <button onclick="approveExitCheckout()" class="flex-1 btn btn-success py-3 rounded-xl font-bold text-sm glow-cyan">
+                ✅ 核對無誤：核准放行
+              </button>
+              <button onclick="document.getElementById('exit-check-details').classList.add('d-none')" class="btn btn-outline-secondary py-3 rounded-xl font-bold text-sm">
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    // State management backed by LocalStorage for resilience
+    let participants = JSON.parse(localStorage.getItem('EXCHANGE_PARTICIPANTS')) || [];
+    let seedBags = JSON.parse(localStorage.getItem('EXCHANGE_SEED_BAGS')) || [];
+    let currentParticipant = null;
+    let html5QrCode = null;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      applyAdminState();
+      updateSessionQuotaText();
+      renderCartList();
+      renderPendingRegistrationList();
+    });
+
+    // Tab switcher
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('d-none'));
+      
+      const adminBtn = document.getElementById(`btn-${tabName}`);
+      if (adminBtn) adminBtn.classList.add('active');
+
+      const pubBtn = document.getElementById(`btn-pub-${tabName}`);
+      if (pubBtn) pubBtn.classList.add('active');
+
+      document.getElementById(`panel-${tabName}`).classList.remove('d-none');
+      stopQRScanner();
+
+      if (tabName === 'staff-approval') {
+        renderPendingRegistrationList();
+      } else if (tabName === 'packaging') {
+        renderPackagingList();
+      } else if (tabName === 'exit') {
+        renderExitParticipants();
+      } else if (tabName === 'select') {
+        renderActiveParticipantsTab3();
+      }
+    }
+
+    // --- Tab 1: Self-Registration & Approval Logic ---
+    function mockGoogleLogin() {
+      document.getElementById('self-name').value = '陳 Google (已驗證)';
+      alert('✅ Google 帳號授權成功！已帶入您的姓名。');
+    }
+
+    function selfRegister(event) {
+      event.preventDefault();
+      const name = document.getElementById('self-name').value;
+      const seedName = document.getElementById('self-seed-name').value;
+      const variety = document.getElementById('self-seed-variety').value;
+      const weight = parseInt(document.getElementById('self-weight').value) || 0;
+      const ticketId = `USER-${Math.floor(Date.now() / 1000).toString().substring(4)}`;
+
+      const newPart = {
+        id: ticketId,
+        name,
+        seedName,
+        variety,
+        weight,
+        quota: 0,
+        selectedBags: [],
+        status: 'pending' // Waiting for staff check
+      };
+
+      participants.push(newPart);
+      localStorage.setItem('EXCHANGE_PARTICIPANTS', JSON.stringify(participants));
+      
+      alert('🎉 報名登記已送出！請將您的種子交給工作人員審核，確認後將核發入場券與兌換額度。');
+      event.target.reset();
+    }
+
+    function renderPendingRegistrationList() {
+      const tbody = document.getElementById('pending-registration-list');
+      tbody.innerHTML = '';
+
+      const pendingParts = participants.filter(p => p.status === 'pending');
+      if (pendingParts.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">目前沒有待核發的民眾報到資料</td></tr>';
+        return;
+      }
+
+      pendingParts.forEach(p => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><strong>${p.name}</strong></td>
+          <td>${p.seedName} (${p.variety})</td>
+          <td>${p.weight}g</td>
+          <td>
+            <input type="number" id="quota-${p.id}" value="3" min="1" max="100" class="form-control bg-dark border-secondary text-white font-bold" style="width: 85px;" />
+          </td>
+          <td>
+            <button onclick="approveParticipantRegistration('${p.id}')" class="btn btn-success btn-xs py-1.5 px-3 rounded-lg font-bold text-[11px] interactive">
+              ✅ 核准
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function approveParticipantRegistration(partId) {
+      const part = participants.find(p => p.id === partId);
+      if (!part) return;
+
+      const quota = parseInt(document.getElementById(`quota-${partId}`).value) || 1;
+
+      // Update state
+      part.quota = quota;
+      part.status = 'active';
+
+      localStorage.setItem('EXCHANGE_PARTICIPANTS', JSON.stringify(participants));
+
+      renderPendingRegistrationList();
+      alert(`🎉 成功核發！已給予 ${part.name} 兌換額度 ${quota} 包，民眾可直接前往選種。`);
+    }
+
+    // --- Tab 2: Packaging & Labeling Logic ---
+    function renderPackagingList() {
+      const tbody = document.getElementById('packaging-list');
+      tbody.innerHTML = '';
+
+      // Only show participants that are active
+      const activeParts = participants.filter(p => p.status === 'active');
+      if (activeParts.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">目前沒有等待分裝的登記資料</td></tr>';
+        return;
+      }
+
+      activeParts.forEach(p => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><strong>${p.name}</strong></td>
+          <td>${p.seedName}</td>
+          <td>${p.weight}g</td>
+          <td>${p.quota} 包</td>
+          <td>
+            <input type="number" id="pack-count-${p.id}" value="${p.quota}" min="1" max="100" class="form-control bg-dark border-secondary text-white font-bold" style="width: 80px;" />
+          </td>
+          <td>
+            <button onclick="generateSeedBagLabels('${p.id}')" class="btn btn-outline-info btn-xs py-1.5 px-3 rounded-lg font-bold text-[11px] interactive">
+              ⚙️ 生成分裝 QR 碼
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function generateSeedBagLabels(partId) {
+      const part = participants.find(p => p.id === partId);
+      if (!part) return;
+
+      const printArea = document.getElementById('labels-print-area');
+      printArea.innerHTML = '';
+
+      const packCount = parseInt(document.getElementById(`pack-count-${partId}`).value) || part.bagsBrought || part.quota;
+
+      // Generate seed bags based on custom package count
+      for (let i = 1; i <= packCount; i++) {
+        const bagId = `BAG-${partId.substring(4)}-B${i}`;
+        
+        // Add to seedBags list if not exist
+        if (!seedBags.some(b => b.id === bagId)) {
+          seedBags.push({
+            id: bagId,
+            name: part.seedName,
+            variety: part.variety,
+            ownerId: partId
+          });
+        }
+
+        // Render printable label UI
+        const col = document.createElement('div');
+        col.className = 'col-6 col-md-4';
+        col.innerHTML = `
+          <div class="bg-white p-3 rounded-xl border border-secondary text-slate-800 text-center" style="font-family: monospace;">
+            <span class="text-[9px] font-bold text-emerald-600 block">🌱 秀明自然農法交換包</span>
+            <strong class="text-xs block mt-1 leading-tight">${part.seedName}</strong>
+            <span class="text-[10px] text-slate-500 block">品種: ${part.variety}</span>
+            <div class="my-2 flex justify-center">
+              <div id="qr-${bagId}" class="qr-container"></div>
+            </div>
+            <span class="text-[8px] text-red-600 font-bold block">${bagId}</span>
+          </div>
+        `;
+        printArea.appendChild(col);
+
+        // Generate QR code inside
+        new QRCode(document.getElementById(`qr-${bagId}`), {
+          text: bagId,
+          width: 80,
+          height: 80
+        });
+      }
+
+      localStorage.setItem('EXCHANGE_SEED_BAGS', JSON.stringify(seedBags));
+      document.getElementById('labels-modal').classList.remove('d-none');
+    }
+
+    // --- Tab 3: Participant Cart & Scanner Logic ---
+    function mockGoogleLoginTab3() {
+      const part = participants.find(p => p.name === '陳 Google (已驗證)' && p.status === 'active');
+      if (part) {
+        alert('✅ Google 帳號驗證成功！已找到您的報到資料。');
+        loadActiveSession(part.id);
+      } else {
+        alert('❌ 找不到您的報到資料，請先至報到櫃台登記。');
+      }
+    }
+
+    function renderActiveParticipantsTab3() {
+      const container = document.getElementById('active-participants-grid');
+      container.innerHTML = '';
+      
+      const activeParts = participants.filter(p => p.status === 'active');
+      if (activeParts.length === 0) {
+        container.innerHTML = '<div class="col-12 text-center text-muted py-4">目前沒有已報到的民眾名單</div>';
+        return;
+      }
+      
+      activeParts.forEach(p => {
+        const col = document.createElement('div');
+        col.className = 'col-6 col-md-4';
+        col.innerHTML = `
+          <button onclick="loadActiveSession('${p.id}')" class="w-full text-start p-3 bg-dark/60 border border-secondary/20 hover:border-cyan rounded-xl interactive flex items-center justify-between">
+            <strong class="text-white text-sm">${p.name}</strong>
+            <span class="badge bg-primary text-white">${p.quota} 包</span>
+          </button>
+        `;
+        container.appendChild(col);
+      });
+    }
+
+    function loadActiveSession(partId) {
+      const part = participants.find(p => p.id === partId);
+      if (!part) return;
+
+      currentParticipant = part;
+      document.getElementById('session-username').innerText = `👋 您好，${part.name}`;
+      updateSessionQuotaText();
+      renderCartList();
+
+      document.getElementById('select-step-login').classList.add('d-none');
+      document.getElementById('select-active-session').classList.remove('d-none');
+    }
+
+    function exitSession() {
+      currentParticipant = null;
+      document.getElementById('select-active-session').classList.add('d-none');
+      document.getElementById('select-step-login').classList.remove('d-none');
+      document.getElementById('exit-verify-container').classList.add('d-none');
+      stopQRScanner();
+    }
+
+    function updateSessionQuotaText() {
+      if (!currentParticipant) return;
+      const count = currentParticipant.selectedBags.length;
+      const quota = currentParticipant.quota;
+      const label = document.getElementById('session-quota');
+      
+      label.innerHTML = `已挑選：<strong class="text-white text-base">${count}</strong> / ${quota} 包`;
+      
+      if (count > quota) {
+        label.innerHTML += ` <span class="text-rose-500 font-bold">(已超出額度！)</span>`;
+      }
+    }
+
+    function renderCartList() {
+      const container = document.getElementById('cart-list');
+      container.innerHTML = '';
+
+      if (!currentParticipant || currentParticipant.selectedBags.length === 0) {
+        container.innerHTML = '<div class="text-center text-muted text-xs py-3 bg-dark/20 rounded-xl border border-dashed border-secondary/20">購物車為空，快去掃描二維碼挑選種子包吧！</div>';
+        return;
+      }
+
+      currentParticipant.selectedBags.forEach((bagId, idx) => {
+        const bag = seedBags.find(b => b.id === bagId);
+        const name = bag ? bag.name : '未知種子包';
+        const variety = bag ? bag.variety : '未知';
+
+        const item = document.createElement('div');
+        item.className = 'bg-dark/60 p-3 rounded-xl border border-secondary/20 flex items-center justify-between text-xs';
+        item.innerHTML = `
+          <div>
+            <strong class="text-white">${name}</strong>
+            <span class="text-muted block mt-0.5">品種: ${variety} | ${bagId}</span>
+          </div>
+          <button onclick="removeFromCart(${idx})" class="btn btn-outline-danger btn-xs py-1 px-2.5 rounded-lg text-[10px]">移除</button>
+        `;
+        container.appendChild(item);
+      });
+    }
+
+    function removeFromCart(idx) {
+      if (!currentParticipant) return;
+      currentParticipant.selectedBags.splice(idx, 1);
+      
+      // Update local storage
+      const partIdx = participants.findIndex(p => p.id === currentParticipant.id);
+      participants[partIdx] = currentParticipant;
+      localStorage.setItem('EXCHANGE_PARTICIPANTS', JSON.stringify(participants));
+
+      updateSessionQuotaText();
+      renderCartList();
+    }
+
+    // --- Admin Authentication Logic ---
+    function promptLogin() {
+      const pwd = prompt("請輸入工作人員密碼 (預設: 1234)");
+      if (pwd === "1234") {
+        localStorage.setItem('EXCHANGE_ADMIN', 'true');
+        applyAdminState();
+        alert("登入成功！切換至後台模式。");
+      } else if (pwd !== null) {
+        alert("密碼錯誤！");
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem('EXCHANGE_ADMIN');
+      applyAdminState();
+      alert("已登出，返回民眾介面。");
+    }
+
+    function applyAdminState() {
+      const isAdmin = localStorage.getItem('EXCHANGE_ADMIN') === 'true';
+      if (isAdmin) {
+        document.getElementById('btn-login').classList.add('d-none');
+        document.getElementById('admin-badge').classList.remove('d-none');
+        document.getElementById('public-nav').classList.add('d-none');
+        document.getElementById('admin-nav').classList.remove('d-none');
+        document.querySelectorAll('.admin-only').forEach(el => el.classList.remove('d-none'));
+        
+        switchTab('staff-approval');
+      } else {
+        document.getElementById('btn-login').classList.remove('d-none');
+        document.getElementById('admin-badge').classList.add('d-none');
+        document.getElementById('public-nav').classList.remove('d-none');
+        document.getElementById('admin-nav').classList.add('d-none');
+        document.querySelectorAll('.admin-only').forEach(el => el.classList.add('d-none'));
+        
+        switchTab('pub-entrance');
+      }
+    }
+
+    function renderExitParticipants() {
+      const container = document.getElementById('exit-participants-list');
+      container.innerHTML = '';
+      
+      const activeParts = participants.filter(p => p.status === 'active');
+      if (activeParts.length === 0) {
+        container.innerHTML = '<div class="col-12 text-center text-muted py-4">目前沒有正在選種的民眾</div>';
+        return;
+      }
+      
+      activeParts.forEach(p => {
+        const col = document.createElement('div');
+        col.className = 'col-6 col-md-4';
+        const count = p.selectedBags.length;
+        const isOver = count > p.quota;
+        const badgeClass = isOver ? 'bg-danger text-white' : 'bg-info text-dark';
+        col.innerHTML = `
+          <button onclick="loadExitCheckout('${p.id}')" class="w-full text-start p-3 bg-dark/60 border border-secondary/20 hover:border-cyan rounded-xl interactive flex flex-col justify-between" style="min-height: 80px; width: 100%;">
+            <strong class="text-white text-sm">${p.name}</strong>
+            <div class="d-flex justify-content-between align-items-center w-100 mt-2 text-[10px]">
+              <span class="text-slate-400">額度: ${p.quota}包</span>
+              <span class="badge ${badgeClass}">${count}包</span>
+            </div>
+          </button>
+        `;
+        container.appendChild(col);
+      });
+    }
+
+    // --- Tab 4: Exit Checkout Logic ---
+    function loadExitCheckout(partId) {
+      const part = participants.find(p => p.id === partId);
+      if (!part) {
+        alert('無效的出口核對憑證！');
+        return;
+      }
+
+      document.getElementById('exit-user-name').innerText = `民眾姓名：${part.name}`;
+      document.getElementById('exit-ticket-id').innerText = `入場券編號: ${part.id}`;
+      document.getElementById('exit-user-quota').innerText = `${part.quota} 包`;
+      document.getElementById('exit-actual-count').innerText = `${part.selectedBags.length} 包`;
+
+      const listContainer = document.getElementById('exit-cart-details');
+      listContainer.innerHTML = '';
+
+      part.selectedBags.forEach(bagId => {
+        const bag = seedBags.find(b => b.id === bagId);
+        const name = bag ? bag.name : '未知種子包';
+        const variety = bag ? bag.variety : '未知';
+
+        const row = document.createElement('div');
+        row.className = 'flex justify-between items-center py-1.5 border-b border-secondary/10 text-xs';
+        row.innerHTML = `
+          <span>🌱 ${name} (${variety})</span>
+          <span class="font-mono text-slate-400">${bagId}</span>
+        `;
+        listContainer.appendChild(row);
+      });
+
+      const badge = document.getElementById('exit-status-badge');
+      if (part.selectedBags.length > part.quota) {
+        badge.innerText = '⚠️ 超額警報';
+        badge.className = 'badge-pill bg-rose-500/20 text-rose-400';
+      } else {
+        badge.innerText = '核對無誤';
+        badge.className = 'badge-pill bg-emerald-500/20 text-emerald-400';
+      }
+
+      document.getElementById('exit-check-details').classList.remove('d-none');
+    }
+
+    function approveExitCheckout() {
+      // Get the current checked participant id
+      const txt = document.getElementById('exit-ticket-id').innerText;
+      const partId = txt.split(': ')[1];
+      const partIdx = participants.findIndex(p => p.id === partId);
+      
+      if (partIdx !== -1) {
+        participants[partIdx].status = 'completed';
+        localStorage.setItem('EXCHANGE_PARTICIPANTS', JSON.stringify(participants));
+        alert('🎉 核對通過！已扣除額度，准予放行出關。');
+        document.getElementById('exit-check-details').classList.add('d-none');
+        renderExitParticipants();
+      }
+    }
+
+    // --- HTML5 QR Code Optical Camera Scanner Controller ---
+    function startQRScanner(mode) {
+      document.getElementById('scanner-container').classList.remove('d-none');
+      
+      if (html5QrCode) {
+        html5QrCode.stop().then(() => startScanning(mode));
+      } else {
+        startScanning(mode);
+      }
+    }
+
+    function startScanning(mode) {
+      html5QrCode = new Html5Qrcode("reader");
+      html5QrCode.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: 250 },
+        (decodedText) => {
+          stopQRScanner();
+          handleScannedData(mode, decodedText);
+        },
+        (errorMessage) => {
+          // suppress scanner noise
+        }
+      ).catch(err => {
+        alert("無法啟用相機光學掃描：請確認是否給予相機權限！");
+        document.getElementById('scanner-container').classList.add('d-none');
+      });
+    }
+
+    function stopQRScanner() {
+      if (html5QrCode) {
+        html5QrCode.stop().then(() => {
+          html5QrCode = null;
+          document.getElementById('scanner-container').classList.add('d-none');
+        }).catch(() => {});
+      }
+    }
+
+    function handleScannedData(mode, data) {
+      if (mode === 'bag') {
+        if (!currentParticipant) return;
+        
+        // Scan seed bag code BAG-xxx
+        if (!data.startsWith('BAG-')) {
+          alert('請掃描正確的種子分裝二維碼！');
+          return;
+        }
+
+        if (currentParticipant.selectedBags.includes(data)) {
+          alert('此種子包已經掃描過，不可重複選取！');
+          return;
+        }
+
+        currentParticipant.selectedBags.push(data);
+        
+        // Update DB
+        const idx = participants.findIndex(p => p.id === currentParticipant.id);
+        participants[idx] = currentParticipant;
+        localStorage.setItem('EXCHANGE_PARTICIPANTS', JSON.stringify(participants));
+
+        updateSessionQuotaText();
+        renderCartList();
+        alert('🛒 成功加入購物車！');
+      } else if (mode === 'exit') {
+        loadExitCheckout(data);
+      }
+    }
+  </script>
+</body>
+</html>
