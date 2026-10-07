@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>活動發布、線上報名與 QR 簽到 - 神慈秀明會</title>
+  
+  <!-- PWA Settings -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#ffa100">
+  <link rel="apple-touch-icon" href="/logo.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="秀明青年">
+  <link rel="icon" href="/logo.png" type="image/png">
+  <script src="/js/pwa.js" defer></script>
+
+  <!-- Google Fonts & Bootstrap 5 & FontAwesome -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <link rel="stylesheet" href="/css/app.css" />
+
+  <!-- Firebase compatibility libraries -->
+  <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-firestore-compat.js"></script>
+
+  <!-- QR Code Generator & Scanner -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+  <style>
+    .events-header {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--glass-border);
+      padding: 10px 16px;
+      position: sticky;
+      top: 0;
+      z-index: 999;
+    }
+    .event-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 14px;
+      overflow: hidden;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      padding: 16px !important;
+    }
+    .event-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(255, 161, 0, 0.2);
+      border-color: rgba(255, 161, 0, 0.4);
+    }
+    .event-badge {
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-weight: 600;
+    }
+    .qr-ticket-card {
+      background: #ffffff;
+      color: #111111;
+      border-radius: 16px;
+      padding: 20px;
+      text-align: center;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+    }
+    #scanner-reader {
+      width: 100%;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    @media (max-width: 768px) {
+      body {
+        padding-bottom: 75px !important;
+      }
+      .event-card {
+        padding: 14px !important;
+      }
+    }
+
+    /* 全局置底導覽列 (確保桌面與行動版均常駐置底) */
+    .bottom-nav {
+      position: fixed !important;
+      bottom: 0 !important;
+      top: auto !important;
+      left: 0 !important;
+      width: 100% !important;
+      display: flex !important;
+      justify-content: space-around !important;
+      align-items: center !important;
+      background: rgba(10, 15, 30, 0.95) !important;
+      backdrop-filter: blur(20px) !important;
+      -webkit-backdrop-filter: blur(20px) !important;
+      border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+      z-index: 1000 !important;
+      box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.5) !important;
+      padding: 6px 0 !important;
+      overflow-x: auto !important;
+    }
+    .bottom-nav-item {
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      color: #94a3b8 !important;
+      text-decoration: none !important;
+      font-size: 11px !important;
+      font-weight: 500 !important;
+      min-width: 48px !important;
+      padding: 2px 4px !important;
+      background: none !important;
+      border: none !important;
+      transition: all 0.2s ease !important;
+    }
+    .bottom-nav-item:hover, .bottom-nav-item.active {
+      color: #00F3FF !important;
+      font-weight: 600 !important;
+      filter: drop-shadow(0 0 5px rgba(0, 243, 255, 0.6)) !important;
+    }
+    .bottom-nav-item svg {
+      width: 20px !important;
+      height: 20px !important;
+      margin-bottom: 2px !important;
+      fill: currentColor !important;
+    }
+    .events-header-nav a, .events-header-nav button {
+      color: #94a3b8;
+      text-decoration: none;
+      font-size: 12px;
+      font-weight: 500;
+      padding: 4px 8px;
+      border-radius: 6px;
+      transition: all 0.15s ease;
+      background: none;
+      border: none;
+    }
+    .events-header-nav a:hover, .events-header-nav button:hover, .events-header-nav a.active {
+      color: #00F3FF;
+      background: rgba(0, 243, 255, 0.1);
+    }
+  </style>
+</head>
+<body style="background: radial-gradient(circle at top, #1c2331 0%, #0d1117 100%); min-height: 100vh; padding-bottom: 85px; color: var(--text-main);">
+
+  <!-- Top Header -->
+  <header class="events-header d-flex justify-content-between align-items-center">
+    <div class="d-flex align-items-center gap-2">
+      <a href="/" class="text-decoration-none">
+        <img src="/logo.png" alt="Logo" style="width: 30px; height: 30px; border-radius: 50%;">
+      </a>
+      <div>
+        <h1 class="h6 mb-0 text-white font-weight-bold" style="font-size: 14px;">活動發布與報到</h1>
+      </div>
+    </div>
+
+    <!-- Desktop Center Navigation -->
+    <div class="events-header-nav d-none d-lg-flex align-items-center gap-1">
+      <a href="/youth/admin.html">青年名單</a>
+      <a href="/scheduling/">值班排程</a>
+      <a href="/scheduling/front.html">現場櫃檯</a>
+      <a href="/youth/group.html">分組</a>
+      <a href="/youth/seminar.html">座談會</a>
+      <a href="/activities/training.html">研修排班</a>
+      <a href="/activities/jyorei.html">靈線淨靈</a>
+      <a href="/activities/events.html" class="active">活動發布</a>
+      <a href="/farm/natural-farm.html" style="color: #52b788;">🌾 農法</a>
+      <button onclick="handleSignOut()">登出</button>
+    </div>
+
+    <div class="d-flex gap-2">
+      <button class="btn btn-sm btn-outline-info rounded-pill px-2 py-1 interactive" onclick="openScannerModal()" style="font-size: 11px;">
+        <i class="fa-solid fa-qrcode me-1"></i>簽到
+      </button>
+      <button class="btn btn-sm btn-primary-custom py-1 px-2 interactive" onclick="openPublishModal()" style="font-size: 11px;">
+        <i class="fa-solid fa-bullhorn me-1"></i>發布
+      </button>
+    </div>
+  </header>
+
+  <main class="container px-2 px-md-3 py-2 py-md-3" style="max-width: 1100px;">
+
+    <!-- Filter Pills (Compact) -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2 mb-md-3">
+      <div class="d-flex flex-nowrap overflow-auto gap-1 pb-1" id="category-filter" style="max-width: 100%;">
+        <button class="btn btn-sm btn-outline-secondary py-1 px-2 text-light active" style="font-size: 11px; white-space: nowrap;" onclick="filterEvents('all', this)">全部活動</button>
+        <button class="btn btn-sm btn-outline-secondary py-1 px-2 text-light" style="font-size: 11px; white-space: nowrap;" onclick="filterEvents('研修營隊', this)">研修營隊</button>
+        <button class="btn btn-sm btn-outline-secondary py-1 px-2 text-light" style="font-size: 11px; white-space: nowrap;" onclick="filterEvents('青年座談', this)">青年座談</button>
+        <button class="btn btn-sm btn-outline-secondary py-1 px-2 text-light" style="font-size: 11px; white-space: nowrap;" onclick="filterEvents('自然農法', this)">自然農法</button>
+        <button class="btn btn-sm btn-outline-secondary py-1 px-2 text-light" style="font-size: 11px; white-space: nowrap;" onclick="filterEvents('特別集會', this)">特別集會</button>
+      </div>
+      <div class="small text-muted" style="font-size: 11px;">
+        共 <strong class="text-warning" id="event-count-text">0</strong> 場
+      </div>
+    </div>
+
+    <!-- Events Grid List -->
+    <div class="row g-2 g-md-3" id="events-container">
+      <!-- Dynamically filled with event cards -->
+    </div>
+
+  </main>
+
+  <!-- Bottom Global Navigation Bar for Activities -->
+  <nav class="bottom-nav">
+    <a href="/activities/training.html" class="bottom-nav-item">
+      <svg viewBox="0 0 24 24"><path d="M19.36 10.04l-7.36-7.36-7.36 7.36 1.41 1.41L11 6.41V20h2V6.41l5.05 5.04z"/></svg>
+      <span>研修排班</span>
+    </a>
+    <a href="/activities/jyorei.html" class="bottom-nav-item">
+      <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 15h-2v-6h2zm0-8h-2V7h2z"/></svg>
+      <span>靈線淨靈</span>
+    </a>
+    <a href="/activities/events.html" class="bottom-nav-item active">
+      <svg viewBox="0 0 24 24"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zM9 14H7v-2h2v2zm4 0h-2v-2h2v2zm4 0h-2v-2h2v2z"/></svg>
+      <span>活動發布</span>
+    </a>
+    <a href="/" class="bottom-nav-item">
+      <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+      <span>系統首頁</span>
+    </a>
+  </nav>
+
+  <!-- Modal: 線上報名彈窗 -->
+  <div class="modal fade" id="registerModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content glass-card noise-overlay border-0 p-4">
+        <div class="modal-header border-0 pb-2">
+          <h5 class="modal-title text-white font-weight-bold" id="reg-event-title">活動線上報名</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="reg-event-id">
+          <div class="mb-3">
+            <label class="form-label text-light small">參加者真實姓名</label>
+            <input type="text" id="reg-user-name" class="form-control bg-dark text-white border-secondary" placeholder="請輸入姓名" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-light small">聯絡電話 (手機)</label>
+            <input type="tel" id="reg-user-phone" class="form-control bg-dark text-white border-secondary" placeholder="0912-345-678" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-light small">所屬部別 / 分組</label>
+            <input type="text" id="reg-user-group" class="form-control bg-dark text-white border-secondary" placeholder="如：青年部第一組、大學生部">
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-light small">飲食與交通備註</label>
+            <textarea id="reg-user-notes" class="form-control bg-dark text-white border-secondary" rows="2" placeholder="如：素食、自行開車、需搭乘交通車..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer border-0 pt-1">
+          <button type="button" class="btn btn-secondary-custom interactive" data-bs-dismiss="modal">取消</button>
+          <button type="button" class="btn btn-primary-custom interactive" onclick="submitRegistration()">確認報名並生成憑證</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: 報名專屬入場憑證 (QR Code Ticket) -->
+  <div class="modal fade" id="ticketModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content bg-transparent border-0">
+        <div class="qr-ticket-card">
+          <div class="badge bg-warning text-dark mb-2 px-3 py-1 font-weight-bold">活動入場簽到憑證</div>
+          <h4 class="font-weight-bold mb-1" id="ticket-event-name"></h4>
+          <p class="text-muted small mb-3" id="ticket-time-loc"></p>
+
+          <div class="p-3 bg-light rounded-3 d-inline-block mb-3 border shadow-sm">
+            <div id="ticket-qrcode"></div>
+          </div>
+
+          <div class="h5 font-weight-bold text-dark mb-1" id="ticket-user-name"></div>
+          <div class="small text-muted mb-3">報到代碼：<code id="ticket-code" class="text-primary font-weight-bold"></code></div>
+
+          <p class="small text-muted mb-4">請在活動現場出示此 QR Code，由幹部掃描即可瞬間完成簽到報到。</p>
+          <button type="button" class="btn btn-dark w-100 py-2 rounded-pill font-weight-bold" data-bs-dismiss="modal">
+            已妥善保存憑證
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: 發布新活動 (Publish Modal) -->
+  <div class="modal fade" id="publishModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content glass-card noise-overlay border-0 p-4">
+        <div class="modal-header border-0 pb-2">
+          <h5 class="modal-title text-white font-weight-bold">發布新活動與集會</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-12 col-md-8">
+              <label class="form-label text-light small">活動名稱</label>
+              <input type="text" id="pub-title" class="form-control bg-dark text-white border-secondary" placeholder="例如：2026 青年春季研討研修會" required>
+            </div>
+            <div class="col-12 col-md-4">
+              <label class="form-label text-light small">活動分類標籤</label>
+              <select id="pub-category" class="form-select bg-dark text-white border-secondary">
+                <option value="研修營隊">研修營隊</option>
+                <option value="青年座談">青年座談</option>
+                <option value="自然農法">自然農法</option>
+                <option value="特別集會">特別集會</option>
+              </select>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label text-light small">活動開始時間</label>
+              <input type="datetime-local" id="pub-start-time" class="form-control bg-dark text-white border-secondary" required>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label text-light small">名額上限 (0 表示不限)</label>
+              <input type="number" id="pub-capacity" class="form-control bg-dark text-white border-secondary" value="30" min="0">
+            </div>
+            <div class="col-12">
+              <label class="form-label text-light small">活動集合地點 (支援 Google 地圖導航)</label>
+              <input type="text" id="pub-location" class="form-control bg-dark text-white border-secondary" placeholder="如：神慈秀明會 台中會館 (台中市南區復興路三段...)" required>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label text-light small">活動費用說明</label>
+              <input type="text" id="pub-fee" class="form-control bg-dark text-white border-secondary" value="免費參加 (隨喜供奉)">
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label text-light small">幹部授權密碼 (預設: 1234)</label>
+              <input type="password" id="pub-auth-pwd" class="form-control bg-dark text-white border-secondary" placeholder="輸入幹部密碼">
+            </div>
+            <div class="col-12">
+              <label class="form-label text-light small">活動詳細內容與議程說明</label>
+              <textarea id="pub-desc" class="form-control bg-dark text-white border-secondary" rows="3" placeholder="請填寫活動內容、注意事項、攜帶物品..."></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer border-0 pt-2">
+          <button type="button" class="btn btn-secondary-custom interactive" data-bs-dismiss="modal">取消</button>
+          <button type="button" class="btn btn-primary-custom interactive" onclick="submitPublishEvent()">即刻公開發布</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: 現場相機 QR Code 簽到掃描器 -->
+  <div class="modal fade" id="scannerModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content glass-card noise-overlay border-0 p-4">
+        <div class="modal-header border-0 pb-2">
+          <h5 class="modal-title text-white font-weight-bold">現場相機 QR Code 簽到</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" onclick="stopScanner()"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted mb-2">請對準學員手機上的入場憑證 QR Code 即可自動核銷簽到：</p>
+          <div id="scanner-reader" class="mb-3"></div>
+          <div id="scan-result" class="p-2 rounded-2 bg-dark text-center small text-light border border-secondary">
+            相機鏡頭啟動中...
+          </div>
+        </div>
+        <div class="modal-footer border-0 pt-1">
+          <button type="button" class="btn btn-secondary-custom w-100 interactive" data-bs-dismiss="modal" onclick="stopScanner()">
+            關閉掃描器
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Global Navigation Bar (Full Portal Links) -->
+  <nav class="bottom-nav">
+    <a href="/youth/admin.html" class="bottom-nav-item" title="青年名單">
+      <svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>
+      <span>名單</span>
+    </a>
+    <a href="/scheduling/" class="bottom-nav-item" title="值班排程">
+      <svg viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z"/></svg>
+      <span>排程</span>
+    </a>
+    <a href="/scheduling/front.html" class="bottom-nav-item" title="現場自助櫃檯">
+      <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
+      <span>櫃檯</span>
+    </a>
+    <a href="/youth/group.html" class="bottom-nav-item" title="小組分組">
+      <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+      <span>分組</span>
+    </a>
+    <a href="/youth/seminar.html" class="bottom-nav-item" title="座談會">
+      <svg viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/></svg>
+      <span>座談會</span>
+    </a>
+    <a href="/activities/training.html" class="bottom-nav-item" title="研修營運與輪調排班">
+      <svg viewBox="0 0 24 24"><path d="M19.36 10.04l-7.36-7.36-7.36 7.36 1.41 1.41L11 6.41V20h2V6.41l5.05 5.04z"/></svg>
+      <span>研修</span>
+    </a>
+    <a href="/activities/jyorei.html" class="bottom-nav-item" title="靈線淨靈打卡">
+      <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 15h-2v-6h2zm0-8h-2V7h2z"/></svg>
+      <span>淨靈</span>
+    </a>
+    <a href="/activities/events.html" class="bottom-nav-item active" title="活動發布與集會">
+      <svg viewBox="0 0 24 24"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zM9 14H7v-2h2v2zm4 0h-2v-2h2v2zm4 0h-2v-2h2v2z"/></svg>
+      <span>活動</span>
+    </a>
+    <a href="/farm/natural-farm.html" class="bottom-nav-item" title="自然農法專區" style="color: #52b788;">
+      <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+      <span>農法</span>
+    </a>
+    <button onclick="handleSignOut()" class="bottom-nav-item" title="登出系統">
+      <svg viewBox="0 0 24 24"><path d="M10.09 15.59L11.5 17l5-5-5-5-1.41 1.41L12.67 11H3v2h9.67l-2.58 2.59zM19 3H5c-1.11 0-2 .9-2 2v4h2V5h14v14H5v-4H3v4c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>
+      <span>登出</span>
+    </button>
+  </nav>
+
+  <!-- Bootstrap Bundle & Events Script -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="/js/events.js"></script>
+  <script>
+    function handleSignOut() {
+      if (typeof firebase !== 'undefined' && firebase.auth) {
+        firebase.auth().signOut().then(function() {
+          window.location.href = '/';
+        }).catch(function() {
+          window.location.href = '/';
+        });
+      } else {
+        window.location.href = '/';
+      }
+    }
+  </script>
+</body>
+</html>

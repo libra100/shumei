@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>排程與值班管理 - 神慈秀明會</title>
+  <link rel="icon" href="/logo.png" type="image/png">
+  <style>
+    body {
+      margin: 0;
+      background: #020617;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, sans-serif;
+      color: #94a3b8;
+      font-size: 14px;
+    }
+    .loader {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+    .spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid rgba(245,158,11,0.15);
+      border-top-color: #f59e0b;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="loader">
+    <div class="spinner"></div>
+    <span>正在開啟排程系統...</span>
+  </div>
+  <script>
+    // Redirect to GanttCraft /scheduling (native React rendering, no iframe)
+    const target = 'https://gantt-craft-2026.web.app/scheduling' + window.location.search;
+    window.location.replace(target);
+  </script>
+</body>
+</html>

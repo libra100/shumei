@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>秀明青年 - 成員專區</title>
+    <!-- PWA Settings -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#ffa100">
+    <link rel="apple-touch-icon" href="/logo.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="秀明青年">
+    <link rel="icon" href="/logo.png" type="image/png">
+    <script src="/js/pwa.js" defer></script>
+                        
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/app.css">
+
+    <style>
+      body {
+        background-color: #070a16;
+        color: var(--text-main);
+        padding-bottom: 40px;
+      }
+
+      .member-container {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 16px 12px;
+      }
+
+      .work-card {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 14px;
+        padding: 16px;
+        margin-bottom: 12px;
+        transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      }
+      .work-card:hover {
+        transform: translateY(-2px);
+        background: rgba(255, 255, 255, 0.05);
+        border-color: rgba(0, 243, 255, 0.3);
+      }
+      .work-card.volunteer-active {
+        border-color: rgba(16, 185, 129, 0.5);
+        background: rgba(16, 185, 129, 0.06);
+        box-shadow: 0 4px 15px rgba(16, 185, 129, 0.1);
+      }
+
+      .quick-action-card {
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 12px;
+        padding: 14px;
+        text-align: center;
+        text-decoration: none !important;
+        color: var(--text-main);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        transition: all 0.2s ease;
+      }
+      .quick-action-card:hover {
+        transform: scale(1.03);
+        border-color: var(--primary-color);
+        color: var(--primary-color);
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Header -->
+    <header class="app-header">
+      <h1 class="app-title">
+        <img onclick="this.classList.toggle('zoomed')" class="logo-zoomable" src="/logo.png" alt="Logo">
+        <span>青年成員專區</span>
+      </h1>
+      <div class="d-flex align-items-center gap-2">
+        <button class="btn btn-outline-light btn-sm interactive" onclick="openIdentitySelector()" id="btn-identity" style="font-size: 13px;">
+          👤 選擇姓名
+        </button>
+        <button onclick="signOut()" class="btn btn-outline-secondary btn-sm interactive" style="font-size: 13px;">
+          登出
+        </button>
+      </div>
+    </header>
+
+    <div class="member-container">
+      <!-- Welcome Banner -->
+      <div class="glass-card noise-overlay stagger-item p-3 mb-3">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+          <div>
+            <h2 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 2px;" id="welcome-name">
+              你好，秀明青年夥伴 👋
+            </h2>
+            <p class="text-muted small mb-0" id="member-subtext">
+              請先確認您的姓名以載入個人排程與工作意願表
+            </p>
+          </div>
+          <div>
+            <span class="badge" style="background: rgba(0, 243, 255, 0.15); color: #00F3FF; border: 1px solid rgba(0, 243, 255, 0.3); font-size: 12px;" id="current-month-badge">
+              本月工作日程
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 1: 📅 我的本月 / 本周排班工作 -->
+      <div class="glass-card noise-overlay stagger-item p-3 mb-3">
+        <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom border-secondary border-opacity-25">
+          <h3 style="font-size: 1rem; font-weight: 600; margin: 0; display: flex; align-items: center; gap: 8px;">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="var(--primary-color)"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/></svg>
+            我已被排定之值班工作
+          </h3>
+          <span class="badge bg-secondary py-1 px-2" id="my-schedule-count" style="font-size: 11px;">0 項安排</span>
+        </div>
+
+        <div id="my-schedule-loading" class="text-center py-3 text-muted small">
+          載入個人排程資料中...
+        </div>
+        <div id="my-schedule-list" class="d-none">
+          <!-- Populated with scheduled cards -->
+        </div>
+      </div>
+
+      <!-- Section 2: ✋ 本月工作招募（我可以幫忙！） -->
+      <div class="glass-card noise-overlay stagger-item p-3 mb-3">
+        <div class="d-flex align-items-center justify-content-between mb-2 pb-2 border-bottom border-secondary border-opacity-25">
+          <div>
+            <h3 style="font-size: 1rem; font-weight: 600; margin: 0; display: flex; align-items: center; gap: 8px; color: #f59e0b;">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="#f59e0b"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+              本月各項工作招募 • 我可以參與
+            </h3>
+          </div>
+          <span class="badge bg-warning text-dark py-1 px-2" style="font-size: 11px;" id="my-volunteer-badge">
+            已登記 0 項
+          </span>
+        </div>
+        <p class="text-muted small mb-3">
+          點擊「我可以參與」，幹部排班時將主動將您納入優先安排考量！
+        </p>
+
+        <div id="available-jobs-container">
+          <!-- Dynamically populated volunteer recruitment jobs -->
+        </div>
+      </div>
+
+      <!-- Section 3: 常用功能快速捷徑 -->
+      <div class="glass-card noise-overlay stagger-item p-3 mb-3">
+        <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 12px; color: var(--text-muted);">
+          常用青年服務與活動
+        </h3>
+        <div class="row g-2">
+          <div class="col-4">
+            <a href="/activities/jyorei.html" class="quick-action-card">
+              <span style="font-size: 22px;">☀️</span>
+              <span style="font-size: 12px; font-weight: 600;">淨靈打卡</span>
+            </a>
+          </div>
+          <div class="col-4">
+            <a href="/activities/events.html" class="quick-action-card">
+              <span style="font-size: 22px;">📋</span>
+              <span style="font-size: 12px; font-weight: 600;">活動與研修</span>
+            </a>
+          </div>
+          <div class="col-4">
+            <a href="/farm/natural-farm.html" class="quick-action-card">
+              <span style="font-size: 22px;">🌾</span>
+              <span style="font-size: 12px; font-weight: 600;">自然農法</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Identity Selection Modal -->
+    <div class="modal fade" id="identityModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content glass-card noise-overlay" style="border: 1px solid rgba(255,255,255,0.15);">
+          <div class="modal-header border-bottom border-secondary border-opacity-25">
+            <h5 class="modal-title" style="font-weight: 600;">選擇您的青年姓名</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body py-3">
+            <p class="text-muted small mb-2">請從青年部名冊中選取您的名字：</p>
+            <select id="select-member-name" class="form-select py-2 mb-3" style="background: rgba(255,255,255,0.08); color: white; border: 1px solid rgba(255,255,255,0.2);">
+              <option value="" disabled selected>載入名冊中...</option>
+            </select>
+          </div>
+          <div class="modal-footer border-top border-secondary border-opacity-25">
+            <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">取消</button>
+            <button type="button" class="btn btn-primary-custom interactive" onclick="confirmIdentity()">確認送出</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Volunteer Express Interest Modal -->
+    <div class="modal fade" id="volunteerModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content glass-card noise-overlay" style="border: 1px solid rgba(255,255,255,0.15);">
+          <div class="modal-header border-bottom border-secondary border-opacity-25">
+            <h5 class="modal-title text-warning" style="font-weight: 600;" id="vol-modal-title">參與工作意願登記</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body py-3">
+            <input type="hidden" id="vol-tag-id">
+            <input type="hidden" id="vol-tag-label">
+            <div class="mb-3">
+              <label class="form-label text-muted small">工作項目</label>
+              <div class="h5 text-info fw-bold" id="vol-modal-job-name">-</div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label text-muted small">預計可配合日期或時段（選填）</label>
+              <input type="text" id="vol-date-note" class="form-control" placeholder="例：9/25 晚上、每週六皆可">
+            </div>
+            <div class="mb-3">
+              <label class="form-label text-muted small">備註留言給幹部（選填）</label>
+              <textarea id="vol-comment" class="form-control" rows="2" placeholder="例：需提早確認交通接送"></textarea>
+            </div>
+          </div>
+          <div class="modal-footer border-top border-secondary border-opacity-25">
+            <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">取消</button>
+            <button type="button" class="btn btn-warning interactive" id="btn-submit-volunteer" onclick="submitVolunteerInterest()">
+              確認表達意願
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-firestore-compat.js"></script>
+    <script src="/js/member.js"></script>
+  </body>
+</html>

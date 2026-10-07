@@ -38,11 +38,7 @@ function signInAsGuest(role) {
   showLoading();
   auth.signInAnonymously()
     .then(() => {
-      if (role === 'admin') {
-        window.location.href = '/youth/admin.html';
-      } else {
-        window.location.href = '/youth/list.html';
-      }
+      window.location.href = '/member/index.html';
     })
     .catch((error) => {
       console.error("匿名登入失敗:", error);
@@ -60,24 +56,21 @@ auth.onAuthStateChanged((user) => {
     }
     
     showLoading();
-    // 檢查是否為管理員
+    // 檢查是否為管理員（幹部）
     db.collection('info').doc('admins').get().then((doc) => {
       if (doc.exists) {
         const emails = doc.data().emails || [];
         if (emails.includes(user.email)) {
-          window.location.href = '/youth/admin.html';
+          window.location.href = '/youth/dashboard.html';
         } else {
-          alert("您為一般使用者，將進入唯讀模式");
-          window.location.href = '/youth/list.html';
+          window.location.href = '/youth/dashboard.html'; // 世話人與幹部相同入口
         }
       } else {
-        alert("您為一般使用者，將進入唯讀模式");
-        window.location.href = '/youth/list.html';
+        window.location.href = '/youth/dashboard.html';
       }
     }).catch((error) => {
       console.error("驗證權限時發生錯誤:", error);
-      alert("權限驗證失敗，將進入唯讀模式");
-      window.location.href = '/youth/list.html';
+      window.location.href = '/youth/dashboard.html';
     });
   }
 });

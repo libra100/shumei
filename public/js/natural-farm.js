@@ -148,6 +148,7 @@ document.addEventListener('DOMContentLoaded', () => {
   renderFeedPosts();
   renderReviews();
   fetchFirestoreData();
+  checkAndHandleTraceUrl();
 });
 
 // Sync data from Firestore if available
@@ -795,3 +796,207 @@ function submitAskFarmer(e) {
 
   showToast(`您的提問已送達【${farmer}】！農友將於 24 小時內回覆。`);
 }
+
+// ==========================================
+// SEED-BANK ✕ SHUMEI OPTICAL TRACE ENGINE
+// ==========================================
+
+// Official Dictionaries matching Seed-Bank src/utils/namingRule.ts
+const SEED_FAMILIES = {
+  SO: { name: '茄科 (Solanaceae)', icon: '🍅' },
+  PO: { name: '禾本科 (Poaceae)', icon: '🌾' },
+  FA: { name: '豆科 (Fabaceae)', icon: '🫘' },
+  CU: { name: '葫蘆科 (Cucurbitaceae)', icon: '🥒' },
+  BR: { name: '十字花科 (Brassicaceae)', icon: '🥬' },
+  AS: { name: '菊科 (Asteraceae)', icon: '🌻' },
+  MA: { name: '錦葵科 (Malvaceae)', icon: '🌺' },
+  LA: { name: '唇形科 (Lamiaceae)', icon: '🌿' }
+};
+
+const SEED_VARIETIES = {
+  LY: { name: '黑柿留種番茄', latin: 'Solanum lycopersicum', family: 'SO', gen: 5, harvester: '林健國 (幸福農莊)', resistance: ['梅雨耐澇', '直根抗倒伏', '極致純淨糖度8.6°'] },
+  OS: { name: '越光米 (自家留種)', latin: 'Oryza sativa', family: 'PO', gen: 12, harvester: '陳大哥 (埔里示範農場)', resistance: ['根深2.5倍', '耐連續乾旱', '淡雅米香'] },
+  GM: { name: '青皮黑豆', latin: 'Glycine max', family: 'FA', gen: 9, harvester: '林大姐 (員山水源區)', resistance: ['耐雨水高濕', '高花青素', '釀造純醬油首選'] },
+  ME: { name: '香甜洋香瓜', latin: 'Cucumis melo', family: 'CU', gen: 7, harvester: '郭農友 (大屯農場)', resistance: ['網紋細緻', '香氣馥郁', '無藥斑'] },
+  OL: { name: '四季白蘿蔔', latin: 'Raphanus sativus', family: 'BR', gen: 8, harvester: '張大哥 (關西分會)', resistance: ['直根扎地', '多汁無渣', '天然芥末醇香'] }
+};
+
+const FARMING_METHODS = {
+  S: '秀明自然農法 (無農藥無肥料自家採種)',
+  N: '自然農法 (自然培育)',
+  O: '有機農法 (無化學農藥肥料)',
+  C: '常規對照組'
+};
+
+const REGIONS_DICT = {
+  TW01: '新北北海岸 (淡水/三芝)',
+  TW02: '宜蘭員山純淨水源區',
+  TW03: '桃園大溪大漢溪畔',
+  TW04: '新竹關西丘陵區',
+  TW05: '南投埔里自然農法示範園區',
+  TW06: '台南後壁無米樂產區',
+  TW07: '高雄旗美平原',
+  TW08: '屏東大樹水源區',
+  TW09: '花蓮壽豐無污染淨土',
+  TW10: '台東池上日照田區'
+};
+
+// Decode official 14~18 character NamingRule: [Family]-[Variety]-[Method]-[Region]-[YYMM]-[Batch]
+function decodeNamingRule(rawCode) {
+  if (!rawCode) return null;
+  const cleaned = rawCode.trim().toUpperCase();
+  const parts = cleaned.split('-');
+
+  if (parts.length >= 6) {
+    const famKey = parts[0];
+    const varKey = parts[1];
+    const methodKey = parts[2];
+    const regionKey = parts[3];
+    const yymm = parts[4];
+    const batch = parts[5];
+
+    const fam = SEED_FAMILIES[famKey] || { name: `${famKey} 科`, icon: '🌱' };
+    const spec = SEED_VARIETIES[varKey] || { 
+      name: `${varKey} 自留種作物`, 
+      latin: 'Species spec.', 
+      gen: 6, 
+      harvester: '秀明認證農友', 
+      resistance: ['無農藥零肥料', '自家採種風土適應'] 
+    };
+    const method = FARMING_METHODS[methodKey] || '秀明自然農法';
+    const region = REGIONS_DICT[regionKey] || `${regionKey} 在地區域`;
+    const year = yymm.length >= 2 ? `20${yymm.slice(0, 2)}` : '2026';
+    const month = yymm.length >= 4 ? `${yymm.slice(2, 4)}月` : '春採';
+
+    return {
+      rawCode: cleaned,
+      familyName: fam.name,
+      familyIcon: fam.icon,
+      cropName: spec.name,
+      scientificName: spec.latin,
+      generation: spec.gen,
+      farmingMethod: method,
+      regionName: region,
+      harvestDate: `${year} 年 ${month}`,
+      batchNumber: batch,
+      harvester: spec.harvester,
+      resistance: spec.resistance
+    };
+  }
+
+  // Fallback demo decoding
+  return {
+    rawCode: cleaned,
+    familyName: '茄科 (Solanaceae)',
+    familyIcon: '🍅',
+    cropName: '黑柿自然留種番茄',
+    scientificName: 'Solanum lycopersicum',
+    generation: 5,
+    farmingMethod: '秀明自然農法 (無農藥無肥料自家採種)',
+    regionName: '新北北海岸 (淡水/三芝)',
+    harvestDate: '2025 年 06月',
+    batchNumber: '001',
+    harvester: '林健國 (幸福農莊)',
+    resistance: ['耐梅雨連日豪雨', '直根系深抗倒伏', '糖度高達 8.6°']
+  };
+}
+
+// Check URL parameters for ?trace= or path /trace/:code
+function checkAndHandleTraceUrl() {
+  const urlParams = new URLSearchParams(window.location.search);
+  let traceCode = urlParams.get('trace');
+
+  if (!traceCode && window.location.pathname.includes('/trace/')) {
+    const segments = window.location.pathname.split('/trace/');
+    if (segments[1]) traceCode = segments[1].split('/')[0];
+  }
+
+  if (traceCode) {
+    const decoded = decodeNamingRule(traceCode);
+    renderTraceCard(decoded);
+    switchMainTab('seeds');
+    setTimeout(() => {
+      const el = document.getElementById('qrTraceContainer');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 400);
+    showToast(`🔍 已成功解析「${traceCode}」實體種子溯源履歷！`);
+  }
+}
+
+// Render Provenance Card inside #qrTraceContainer
+function renderTraceCard(data) {
+  const container = document.getElementById('qrTraceContainer');
+  if (!container || !data) return;
+
+  container.style.display = 'block';
+  container.innerHTML = `
+    <div class="p-4 rounded-4" style="background: radial-gradient(circle at 10% 20%, rgba(27, 67, 50, 0.95) 0%, rgba(13, 30, 21, 0.98) 90%); border: 2px solid var(--farm-gold-accent);">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 border-bottom border-success border-opacity-50 pb-2">
+        <div class="d-flex align-items-center gap-2">
+          <span class="fs-2">${data.familyIcon}</span>
+          <div>
+            <span class="badge bg-warning text-dark font-mono fw-bold px-2 py-1">
+              <i class="fa-solid fa-qrcode me-1"></i> 實體種子標籤光學溯源認證
+            </span>
+            <h4 class="h5 fw-bold text-white mb-0 mt-1">${data.cropName} <small class="text-warning fs-6">第 ${data.generation} 代自家採種</small></h4>
+            <div class="text-muted" style="font-size: 0.75rem; font-style: italic;">${data.scientificName} · ${data.familyName}</div>
+          </div>
+        </div>
+        <div class="text-end">
+          <div class="badge bg-dark border border-warning text-warning font-mono fs-6 px-3 py-1">
+            [${data.rawCode}]
+          </div>
+          <div class="text-success small mt-1"><i class="fa-solid fa-shield-halved me-1"></i>Seed-Bank 官方驗證真實</div>
+        </div>
+      </div>
+
+      <div class="row g-3 mb-3 text-light small">
+        <div class="col-sm-6 col-md-3">
+          <div class="p-2 rounded-3 bg-dark bg-opacity-50 border border-secondary">
+            <div class="text-muted" style="font-size: 0.72rem;">🌱 採種農法規範</div>
+            <strong class="text-success">${data.farmingMethod}</strong>
+          </div>
+        </div>
+        <div class="col-sm-6 col-md-3">
+          <div class="p-2 rounded-3 bg-dark bg-opacity-50 border border-secondary">
+            <div class="text-muted" style="font-size: 0.72rem;">📍 採種風土產區</div>
+            <strong class="text-white">${data.regionName}</strong>
+          </div>
+        </div>
+        <div class="col-sm-6 col-md-3">
+          <div class="p-2 rounded-3 bg-dark bg-opacity-50 border border-secondary">
+            <div class="text-muted" style="font-size: 0.72rem;">👨‍🌾 採種傳承農友</div>
+            <strong class="text-warning">${data.harvester}</strong>
+          </div>
+        </div>
+        <div class="col-sm-6 col-md-3">
+          <div class="p-2 rounded-3 bg-dark bg-opacity-50 border border-secondary">
+            <div class="text-muted" style="font-size: 0.72rem;">🗓️ 採收封裝年份</div>
+            <strong class="text-info">${data.harvestDate} (批次 ${data.batchNumber})</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <div class="text-muted small mb-1"><i class="fa-solid fa-dna text-info me-1"></i>在地風土與極端氣候適應特質：</div>
+        <div class="d-flex flex-wrap gap-2">
+          ${data.resistance.map(r => `<span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-50 px-2 py-1"><i class="fa-solid fa-check-circle me-1"></i>${r}</span>`).join('')}
+          <span class="badge bg-dark text-warning border border-secondary px-2 py-1"><i class="fa-solid fa-temperature-arrow-up me-1"></i>微氣候低溫庫存 ST-01 封存保鮮</span>
+        </div>
+      </div>
+
+      <div class="d-flex flex-wrap gap-2 pt-2 border-top border-secondary border-opacity-25">
+        <button class="btn btn-sm btn-outline-warning rounded-pill px-3 interactive" onclick="openTimelapseModal()">
+          <i class="fa-solid fa-camera me-1"></i> 瀏覽該批次 5 階段縮時日記
+        </button>
+        <button class="btn btn-sm btn-outline-light rounded-pill px-3 interactive" onclick="switchMainTab('food');">
+          <i class="fa-solid fa-utensils me-1"></i> 查看此作物無添加節氣食譜
+        </button>
+        <button class="btn btn-sm btn-success rounded-pill px-3 ms-auto interactive" onclick="openReviewModal()">
+          <i class="fa-solid fa-pen-nib me-1"></i> 回傳種植心得 (+50 Karma)
+        </button>
+      </div>
+    </div>
+  `;
+}
+

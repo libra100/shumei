@@ -27,7 +27,15 @@
 
     // 種子交換會模組
     '/change.html': '/seed/change.html',
-    '/change': '/seed/change.html'
+    '/change': '/seed/change.html',
+
+    // 活動與研修模組 (Activities)
+    '/training.html': '/activities/training.html',
+    '/training': '/activities/training.html',
+    '/jyorei.html': '/activities/jyorei.html',
+    '/jyorei': '/activities/jyorei.html',
+    '/events.html': '/activities/events.html',
+    '/events': '/activities/events.html'
   };
 
   /**

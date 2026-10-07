@@ -1,8 +1,9 @@
-const CACHE_NAME = 'shumei-pwa-v1.22';
+const CACHE_NAME = 'shumei-pwa-v1.25';
 const ASSETS = [
   '/',
   '/index.html',
   '/404.html',
+  '/manifest.json',
   '/youth/list.html',
   '/youth/admin.html',
   '/youth/group.html',
@@ -11,6 +12,10 @@ const ASSETS = [
   '/farm/natural-farm.html',
   '/farm/natural-farm-admin.html',
   '/seed/change.html',
+  '/activities/training.html',
+  '/activities/jyorei.html',
+  '/activities/events.html',
+  '/js/pwa.js',
   '/js/redirect.js',
   '/js/index.js',
   '/js/list.js',
@@ -21,6 +26,9 @@ const ASSETS = [
   '/js/natural-farm.js',
   '/js/natural-farm-admin.js',
   '/js/change.js',
+  '/js/training.js',
+  '/js/jyorei.js',
+  '/js/events.js',
   '/css/app.css',
   '/css/natural-farm.css',
   '/logo.png',

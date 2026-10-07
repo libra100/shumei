@@ -7,6 +7,12 @@ firebase.initializeApp({
 const db = firebase.firestore();
 const auth = firebase.auth();
 
+function signOut() {
+  auth.signOut().then(() => {
+    window.location.href = '/index.html';
+  });
+}
+
 // Globals
 let graphData = { nodes: [], links: [] };
 let nodeMap = new Map();

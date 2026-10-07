@@ -22,7 +22,20 @@
       { "source": "/natural-farm-admin.html", "destination": "/farm/natural-farm-admin.html", "type": 301 },
       { "source": "/natural-farm-admin", "destination": "/farm/natural-farm-admin.html", "type": 301 },
       { "source": "/change.html", "destination": "/seed/change.html", "type": 301 },
-      { "source": "/change", "destination": "/seed/change.html", "type": 301 }
+      { "source": "/change", "destination": "/seed/change.html", "type": 301 },
+      { "source": "/training.html", "destination": "/activities/training.html", "type": 301 },
+      { "source": "/training", "destination": "/activities/training.html", "type": 301 },
+      { "source": "/jyorei.html", "destination": "/activities/jyorei.html", "type": 301 },
+      { "source": "/jyorei", "destination": "/activities/jyorei.html", "type": 301 },
+      { "source": "/events.html", "destination": "/activities/events.html", "type": 301 },
+      { "source": "/events", "destination": "/activities/events.html", "type": 301 },
+      { "source": "/shumei", "destination": "/scheduling/index.html", "type": 301 },
+      { "source": "/shumei-front", "destination": "/scheduling/front.html", "type": 301 },
+      { "source": "/front", "destination": "/scheduling/front.html", "type": 301 },
+      { "source": "/front.html", "destination": "/scheduling/front.html", "type": 301 },
+      { "source": "/scheduling", "destination": "/scheduling/index.html", "type": 301 },
+      { "source": "/trace/:code", "destination": "/farm/natural-farm.html?trace=:code", "type": 302 },
+      { "source": "/trace", "destination": "/farm/natural-farm.html#grain-memory", "type": 302 }
     ]
   },
   "functions": {
