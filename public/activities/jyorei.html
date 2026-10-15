@@ -220,31 +220,36 @@
       <!-- 左欄 (桌面版) / 頂部 (手機版)：全會願景進度 Banner + 成就卡片 -->
       <div class="col-12 col-lg-5">
         
-        <!-- 1. 全會萬人願景儀表板 (緊湊化設計) -->
+        <!-- 1. 全會實踐成果統計 (真實資料庫統計，無模擬假資料) -->
         <div class="vision-card noise-overlay mb-3">
-          <div class="d-flex justify-content-between align-items-center mb-1">
-            <span class="badge bg-warning text-dark px-2 py-0 font-weight-bold" style="font-size: 11px;">
-              🌟 2026 全會光明實踐進度
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="badge bg-info text-dark px-2 py-1 font-weight-bold" style="font-size: 11px;">
+              ☀️ 全會淨靈實踐統計
             </span>
-            <span class="small text-muted" style="font-size: 11px;">
-              月度目標：10,000 人次
+            <span class="small text-muted" id="jyorei-updated-time" style="font-size: 11px;">
+              即時統計中...
             </span>
           </div>
 
-          <div class="d-flex justify-content-between align-items-baseline my-1">
+          <div class="d-flex justify-content-between align-items-baseline my-2">
             <div>
-              <span class="counter-number" id="global-counter">8,620</span>
-              <small class="text-light ms-1" style="font-size: 12px;">人次</small>
+              <span class="counter-number" id="global-counter">0</span>
+              <small class="text-light ms-1" style="font-size: 13px;">人次 (累計施光)</small>
             </div>
             <div class="text-end">
-              <span class="small text-muted">達成率：</span>
-              <strong id="progress-percent" class="text-warning h6 mb-0">86.2%</strong>
+              <span class="badge bg-secondary py-1 px-2" id="global-logs-count">0 筆紀錄</span>
             </div>
           </div>
 
-          <!-- Progress Bar -->
-          <div class="progress rounded-pill bg-dark" style="height: 8px; border: 1px solid rgba(255, 255, 255, 0.1);">
-            <div id="progress-bar" class="progress-bar bg-warning progress-bar-striped progress-bar-animated" role="progressbar" style="width: 86.2%;"></div>
+          <div class="row g-2 text-center pt-2 border-top border-secondary border-opacity-25 mt-2">
+            <div class="col-6">
+              <div class="small text-muted" style="font-size: 11px;">對信徒施光</div>
+              <div class="h5 mb-0 fw-bold text-warning" id="stat-global-believers">0 <span class="small font-weight-normal text-muted" style="font-size: 11px;">人次</span></div>
+            </div>
+            <div class="col-6">
+              <div class="small text-muted" style="font-size: 11px;">對未信徒施光</div>
+              <div class="h5 mb-0 fw-bold text-success" id="stat-global-non-believers">0 <span class="small font-weight-normal text-muted" style="font-size: 11px;">人次</span></div>
+            </div>
           </div>
         </div>
 

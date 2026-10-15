@@ -15,102 +15,21 @@ if (!firebase.apps.length) {
 const db = firebase.firestore();
 const auth = firebase.auth();
 
-// Admin Mock & Local State
-let adminEvents = [
-  {
-    id: 'event_dining_01',
-    title: '光之餐桌：初夏旬味無菜單料理',
-    category: 'dining',
-    categoryName: '🍽️ 餐桌料理',
-    pricing: 'NT$ 1,200 (保證金)',
-    sessions: [{ date: '2026-06-06', time: '17:30', max: 20, booked: 18, waitlist: 0 }],
-    status: '已發布'
-  },
-  {
-    id: 'event_farm_02',
-    title: '自然農法水稻插秧與奉仕日',
-    category: 'farm_exp',
-    categoryName: '🌱 農事體驗',
-    pricing: '免費公益',
-    sessions: [{ date: '2026-05-23', time: '09:00', max: 30, booked: 28, waitlist: 0 }],
-    status: '已發布'
-  },
-  {
-    id: 'event_seed_03',
-    title: '水花園市集：自家採種工作坊',
-    category: 'seed_saving',
-    categoryName: '🧬 保種工作坊',
-    pricing: '免費參與',
-    sessions: [{ date: '2026-05-30', time: '14:00', max: 25, booked: 12, waitlist: 0 }],
-    status: '已發布'
-  }
-];
-
-let rosterData = [
-  {
-    token: 'SHUMEI-NF-K8S1-8392',
-    name: '林曉峰',
-    phone: '0912-345-678',
-    eventTitle: '光之餐桌：初夏旬味',
-    session: '2026-06-06 17:30',
-    headcount: 2,
-    bringUtensils: true,
-    status: 'confirmed'
-  },
-  {
-    token: 'SHUMEI-NF-J9M2-4102',
-    name: '陳雅筑',
-    phone: '0922-888-111',
-    eventTitle: '自然農法水稻插秧日',
-    session: '2026-05-23 09:00',
-    headcount: 1,
-    bringUtensils: true,
-    status: 'checked_in'
-  },
-  {
-    token: 'SHUMEI-NF-L3P8-9941',
-    name: '黃柏翔',
-    phone: '0933-777-666',
-    eventTitle: '水花園自家採種工作坊',
-    session: '2026-05-30 14:00',
-    headcount: 3,
-    bringUtensils: false,
-    status: 'confirmed'
-  },
-  {
-    token: 'SHUMEI-NF-Q5V7-1284',
-    name: '張家瑋',
-    phone: '0955-444-333',
-    eventTitle: '光之餐桌：初夏旬味',
-    session: '2026-06-06 17:30',
-    headcount: 2,
-    bringUtensils: true,
-    status: 'waitlist'
-  }
-];
-
-let volunteerList = [
-  { id: 'v1', name: '陳美玲', phone: '0911-222-333', stage: '新申請', skills: '攝影紀錄、外語翻譯', note: '可支援假日市集', hours: 0 },
-  { id: 'v2', name: '李冠宇', phone: '0922-333-444', stage: '新申請', skills: '農事好手 (割草機經驗)', note: '可支援水稻田區', hours: 0 },
-  { id: 'v3', name: '趙子瑄', phone: '0933-444-555', stage: '面談評估', skills: '廚藝研發、無菜單料理', note: '光之餐桌主廚助理', hours: 12 },
-  { id: 'v4', name: '郭俊傑', phone: '0955-666-777', stage: '已認證', skills: '現場交管、活動策劃', note: '市集機動組長', hours: 36 },
-  { id: 'v5', name: '許雅琪', phone: '0977-888-999', stage: '活躍奉仕', skills: '自家採種師、食育講師', note: '資深活動核心幹部', hours: 120 }
-];
-
-let moderationReviews = [
-  { id: 'mrev_1', author: '黃雅筑', title: '光之餐桌感官評價', rating: '⭐⭐⭐⭐⭐ 純淨度五星', content: '第一口吃下番茄冷湯時眼淚差點流出來...', isPinned: true, isApproved: true },
-  { id: 'mrev_2', author: '張書銘', title: '水稻插秧日', rating: '⭐⭐⭐⭐⭐ 土地連結五星', content: '第一次赤腳踩進水田的那一刻，感受到了泥土的溫度...', isPinned: false, isApproved: true }
-];
-
-let moderationFeeds = [
-  { id: 'mfeed_1', author: '陳志遠農友', title: '晨露與根系呼吸', term: '立夏', likes: 48, desc: '含高解析田區晨露縮時相片 1 張' }
-];
+// Real Database States (No Mock Data)
+let adminEvents = [];
+let rosterData = [];
+let volunteerList = [];
+let moderationReviews = [];
+let moderationFeeds = [];
 
 let html5QrScanner = null;
 
 // Initialize on Load
 document.addEventListener('DOMContentLoaded', () => {
   initCharts();
+  fetchFirestoreEvents();
+  fetchFirestoreBookings();
+  fetchFirestoreVolunteers();
   renderAdminEventsTable();
   renderRosterTable();
   renderModerationLists();
@@ -261,34 +180,81 @@ function initCharts() {
   }
 }
 
+// Fetch Real Events from Firestore
+async function fetchFirestoreEvents() {
+  try {
+    const snap = await db.collection('natural_events').get();
+    adminEvents = [];
+    if (!snap.empty) {
+      snap.forEach(doc => {
+        adminEvents.push({ id: doc.id, ...doc.data() });
+      });
+    }
+    renderAdminEventsTable();
+  } catch (err) {
+    console.warn("Could not fetch natural_events:", err);
+  }
+}
+
+// Fetch Volunteers from Firestore
+async function fetchFirestoreVolunteers() {
+  try {
+    const snap = await db.collection('natural_volunteers').get();
+    volunteerList = [];
+    if (!snap.empty) {
+      snap.forEach(doc => {
+        volunteerList.push({ id: doc.id, ...doc.data() });
+      });
+    }
+    renderVolunteerManagementTable();
+  } catch (err) {
+    console.warn("Could not fetch natural_volunteers:", err);
+  }
+}
+
 // Render Admin Events Table
 function renderAdminEventsTable() {
   const tbody = document.getElementById('adminEventsTableBody');
   if (!tbody) return;
 
+  if (adminEvents.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">目前尚無活動，點擊右上角「發布全新自然農法活動」建立。</td></tr>`;
+    return;
+  }
+
   tbody.innerHTML = adminEvents.map((evt) => {
-    const session = evt.sessions[0] || {};
+    const session = evt.sessions?.[0] || {};
     return `
       <tr>
-        <td class="fw-bold text-white">${evt.title}</td>
-        <td><span class="badge bg-success bg-opacity-50 text-light">${evt.categoryName || evt.category}</span></td>
-        <td>${session.date} (${session.booked}/${session.max}人)</td>
-        <td class="text-warning">${evt.pricing}</td>
-        <td><span class="badge bg-success rounded-pill">${evt.status}</span></td>
+        <td class="fw-bold text-white">${evt.title || '未命名活動'}</td>
+        <td><span class="badge bg-success bg-opacity-50 text-light">${evt.categoryName || evt.category || '活動'}</span></td>
+        <td>${session.date || '未定'} (${session.booked || 0}/${session.max || 20}人)</td>
+        <td class="text-warning">${evt.pricing || '免費'}</td>
+        <td><span class="badge bg-success rounded-pill">${evt.status || '已發布'}</span></td>
         <td>
           <button class="btn btn-sm btn-outline-info rounded-pill py-0 px-2 me-1 interactive" onclick="openEditEventModal('${evt.id}')">編輯</button>
-          <button class="btn btn-sm btn-outline-danger rounded-pill py-0 px-2 interactive" onclick="deleteAdminEvent('${evt.id}')">下架</button>
+          <button class="btn btn-sm btn-outline-danger rounded-pill py-0 px-2 interactive" onclick="deleteAdminEvent('${evt.id}')">刪除</button>
         </td>
       </tr>
     `;
   }).join('');
 }
 
-// Delete Event
-function deleteAdminEvent(id) {
-  adminEvents = adminEvents.filter(e => e.id !== id);
-  renderAdminEventsTable();
-  showAdminToast("活動已下架存檔！", "info");
+// Delete Event from Firestore
+async function deleteAdminEvent(id) {
+  const evt = adminEvents.find(e => e.id === id);
+  const title = evt ? evt.title : '此活動';
+  if (!confirm(`確定要從雲端資料庫永久刪除「${title}」嗎？\n刪除後前台將立即移除。`)) return;
+
+  try {
+    await db.collection('natural_events').doc(id).delete();
+    adminEvents = adminEvents.filter(e => e.id !== id);
+    renderAdminEventsTable();
+    showAdminToast(`「${title}」已成功自資料庫刪除！`, "info");
+  } catch (err) {
+    console.error("Delete event error:", err);
+    showAdminToast("刪除失敗：" + (err.message || '請確認權限'), "danger");
+  }
 }
 
 // Open Edit Event Modal
@@ -297,35 +263,56 @@ function openEditEventModal(id) {
   if (!evt) return;
 
   document.getElementById('editEventId').value = evt.id;
-  document.getElementById('editEventTitle').value = evt.title;
-  document.getElementById('editEventPricing').value = evt.pricing;
-  document.getElementById('editEventStatus').value = evt.status;
-  document.getElementById('editEventDate').value = evt.sessions[0]?.date || '';
-  document.getElementById('editEventMax').value = evt.sessions[0]?.max || 20;
+  document.getElementById('editEventTitle').value = evt.title || '';
+  document.getElementById('editEventPricing').value = evt.pricing || '';
+  document.getElementById('editEventStatus').value = evt.status || '已發布';
+  document.getElementById('editEventDate').value = evt.sessions?.[0]?.date || '';
+  document.getElementById('editEventMax').value = evt.sessions?.[0]?.max || 20;
+
+  const locEl = document.getElementById('editEventLocation');
+  if (locEl) locEl.value = evt.location || '';
+  const descEl = document.getElementById('editEventDesc');
+  if (descEl) descEl.value = evt.description || '';
 
   const modal = new bootstrap.Modal(document.getElementById('editEventModal'));
   modal.show();
 }
 
-function submitEditEvent(e) {
+async function submitEditEvent(e) {
   if (e && e.preventDefault) e.preventDefault();
   const id = document.getElementById('editEventId').value;
   const evt = adminEvents.find(e => e.id === id);
   if (!evt) return;
 
-  evt.title = document.getElementById('editEventTitle').value.trim();
-  evt.pricing = document.getElementById('editEventPricing').value.trim();
-  evt.status = document.getElementById('editEventStatus').value;
+  const title = document.getElementById('editEventTitle').value.trim();
+  const pricing = document.getElementById('editEventPricing').value.trim();
+  const status = document.getElementById('editEventStatus').value;
+  const date = document.getElementById('editEventDate').value.trim();
+  const max = parseInt(document.getElementById('editEventMax').value, 10) || 20;
+  const loc = document.getElementById('editEventLocation')?.value?.trim() || '';
+  const desc = document.getElementById('editEventDesc')?.value?.trim() || '';
+
+  evt.title = title;
+  evt.pricing = pricing;
+  evt.status = status;
+  if (loc) evt.location = loc;
+  if (desc) evt.description = desc;
+  if (!evt.sessions) evt.sessions = [{}];
   if (evt.sessions[0]) {
-    evt.sessions[0].date = document.getElementById('editEventDate').value.trim();
-    evt.sessions[0].max = parseInt(document.getElementById('editEventMax').value, 10) || 20;
+    evt.sessions[0].date = date;
+    evt.sessions[0].max = max;
   }
 
-  renderAdminEventsTable();
-  const modalInstance = bootstrap.Modal.getInstance(document.getElementById('editEventModal'));
-  if (modalInstance) modalInstance.hide();
-
-  showAdminToast("活動資訊已更新成功！");
+  try {
+    await db.collection('natural_events').doc(id).set(evt, { merge: true });
+    renderAdminEventsTable();
+    const modalInstance = bootstrap.Modal.getInstance(document.getElementById('editEventModal'));
+    if (modalInstance) modalInstance.hide();
+    showAdminToast("活動資訊已成功更新至雲端資料庫！");
+  } catch (err) {
+    console.error("Edit event error:", err);
+    showAdminToast("更新失敗：" + (err.message || '請確認權限'), "danger");
+  }
 }
 
 // Open Create Event Modal
@@ -334,13 +321,13 @@ function openCreateEventModal() {
   modal.show();
 }
 
-// Submit Create Event
-function submitCreateEvent(e) {
+// Submit Create Event to Firestore
+async function submitCreateEvent(e) {
   if (e && e.preventDefault) e.preventDefault();
   const title = document.getElementById('newEventTitle').value.trim() || '新發布自然農法活動';
   const category = document.getElementById('newEventCategory').value;
   const pricing = document.getElementById('newEventPricing').value.trim() || '免費公益';
-  const banner = document.getElementById('newEventBannerUrl').value.trim();
+  const banner = document.getElementById('newEventBannerUrl').value.trim() || 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=800&q=80';
   const location = document.getElementById('newEventLocation').value.trim() || '秀明自然農法園區';
   const date = document.getElementById('newEventDate').value || '2026-07-01';
   const time = document.getElementById('newEventTime').value.trim() || '09:00 - 12:00';
@@ -356,20 +343,23 @@ function submitCreateEvent(e) {
     location: location,
     pricing: pricing,
     description: desc,
-    sessions: [{ date: date, time: time, max: max, booked: 0, waitlist: 0 }],
-    status: '已發布'
+    bringUtensilsBonus: '+20 Karma',
+    sessions: [{ id: 's1', date: date, time: time, max: max, booked: 0, waitlist: 0 }],
+    status: '已發布',
+    createdAt: firebase.firestore ? firebase.firestore.FieldValue.serverTimestamp() : new Date()
   };
 
-  adminEvents.unshift(newEvent);
-  renderAdminEventsTable();
-
-  // Save to Firestore
-  db.collection('natural_events').doc(newEvent.id).set(newEvent).catch(err => console.log("Firestore event creation:", err));
-
-  const modalInstance = bootstrap.Modal.getInstance(document.getElementById('createEventModal'));
-  if (modalInstance) modalInstance.hide();
-
-  showAdminToast("🎉 新活動已成功發布！前台可即時預約。");
+  try {
+    await db.collection('natural_events').doc(newEvent.id).set(newEvent);
+    adminEvents.unshift(newEvent);
+    renderAdminEventsTable();
+    const modalInstance = bootstrap.Modal.getInstance(document.getElementById('createEventModal'));
+    if (modalInstance) modalInstance.hide();
+    showAdminToast("🎉 新活動已成功發布至雲端資料庫！");
+  } catch (err) {
+    console.error("Create event error:", err);
+    showAdminToast("發布失敗：" + (err.message || '請確認權限'), "danger");
+  }
 }
 
 // Render Roster Table

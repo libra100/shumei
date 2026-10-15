@@ -377,25 +377,60 @@ async function loadSeminarsData() {
 async function loadJyoreiData() {
   try {
     const totalEl = document.getElementById('dash-jyorei-total');
-    const progEl = document.getElementById('dash-jyorei-progress');
+    const believerEl = document.getElementById('dash-jyorei-believer');
+    const nonBelieverEl = document.getElementById('dash-jyorei-nonbeliever');
     const logsEl = document.getElementById('recent-jyorei-logs');
+    const countBadge = document.getElementById('dash-jyorei-count');
 
-    // 嘗試由 Firestore 讀取最近打卡記錄
-    const snap = await db.collection('jyorei_logs').limit(5).get().catch(() => null);
+    // 由 Firestore 讀取所有打卡紀錄以精確加總
+    const snap = await db.collection('jyorei_logs').get().catch(() => null);
     if (snap && !snap.empty) {
+      let total = 0;
+      let totalBelievers = 0;
+      let totalNonBelievers = 0;
       const logs = [];
-      snap.forEach(doc => logs.push(doc.data()));
+
+      snap.forEach(doc => {
+        const d = doc.data();
+        const b = parseInt(d.totalBeliever ?? d.selfBeliever ?? 0) || 0;
+        const nb = parseInt(d.totalNonBeliever ?? d.selfNonBeliever ?? 0) || 0;
+        const g = parseInt(d.grandTotal ?? (b + nb)) || (b + nb);
+
+        total += g;
+        totalBelievers += b;
+        totalNonBelievers += nb;
+        logs.push({ id: doc.id, ...d });
+      });
+
+      if (totalEl) totalEl.innerText = total.toLocaleString();
+      if (believerEl) believerEl.innerText = totalBelievers.toLocaleString();
+      if (nonBelieverEl) nonBelieverEl.innerText = totalNonBelievers.toLocaleString();
+      if (countBadge) countBadge.innerText = `${snap.size} 筆`;
+
+      // 依時間倒序排序
+      logs.sort((a, b) => {
+        const tA = a.timestamp?.seconds || 0;
+        const tB = b.timestamp?.seconds || 0;
+        if (tA !== tB) return tB - tA;
+        return (b.date || '').localeCompare(a.date || '');
+      });
+
+      const recent = logs.slice(0, 5);
       if (logsEl) {
-        logsEl.innerHTML = logs.map(l => `
+        logsEl.innerHTML = recent.map(l => `
           <div class="d-flex justify-content-between py-1 border-bottom border-secondary border-opacity-10">
-            <span>${l.reporterName || '成員'} • ${l.targetName || '受者'}</span>
-            <span class="text-info">${l.date || '今日'} (${l.type === 'believer' ? '信徒' : '未信徒'})</span>
+            <span>${l.reporter || '成員'} • 共 ${l.grandTotal || (l.totalBeliever + l.totalNonBeliever) || 1} 人次</span>
+            <span class="text-info">${l.date || '今日'} (信徒: ${l.totalBeliever || 0} / 未信徒: ${l.totalNonBeliever || 0})</span>
           </div>
         `).join('');
       }
     } else {
+      if (totalEl) totalEl.innerText = '0';
+      if (believerEl) believerEl.innerText = '0';
+      if (nonBelieverEl) nonBelieverEl.innerText = '0';
+      if (countBadge) countBadge.innerText = '0 筆';
       if (logsEl) {
-        logsEl.innerHTML = '<div class="text-muted small">本月淨靈實踐持續推動中，全員朝 10,000 人次邁進！</div>';
+        logsEl.innerHTML = '<div class="text-muted small">目前尚未有淨靈打卡紀錄。</div>';
       }
     }
   } catch (err) {

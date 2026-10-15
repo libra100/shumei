@@ -20,9 +20,6 @@ let allMembersCache = [];
 let myLineageMembers = [];
 let debounceTimer = null;
 
-let globalBaseCount = 8620;
-const MONTHLY_TARGET = 10000;
-
 document.addEventListener('DOMContentLoaded', () => {
   // 設定今日日期
   const today = new Date().toISOString().split('T')[0];
@@ -32,6 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const cachedName = localStorage.getItem('SHUMEI_LAST_REPORTER_NAME') || '';
   if (cachedName) {
     document.getElementById('reporter-name').value = cachedName;
+    currentReporterName = cachedName;
   }
 
   loadGlobalStats();
@@ -39,24 +37,62 @@ document.addEventListener('DOMContentLoaded', () => {
   loadRecentLogs();
 });
 
-// 讀取全會願景進度與個人成就
-function loadGlobalStats() {
-  const localAdded = parseInt(localStorage.getItem('SHUMEI_JYOREI_ADDED_COUNT') || '0');
-  const total = globalBaseCount + localAdded;
-  
-  document.getElementById('global-counter').innerText = total.toLocaleString();
-  const percent = Math.min(100, ((total / MONTHLY_TARGET) * 100)).toFixed(1);
-  document.getElementById('progress-percent').innerText = `${percent}%`;
-  document.getElementById('progress-bar').style.width = `${percent}%`;
+// 讀取全會真實打卡統計
+async function loadGlobalStats() {
+  try {
+    const snap = await db.collection('jyorei_logs').get();
+    let totalPracticed = 0;
+    let totalBelievers = 0;
+    let totalNonBelievers = 0;
+    let myBelieverTotal = 0;
+    let myNonBelieverTotal = 0;
 
-  // 個人成就卡片 (信徒 / 未信徒)
-  const believerTotal = parseInt(localStorage.getItem('SHUMEI_MY_JYOREI_BELIEVER_TOTAL') || '0');
-  const nonBelieverTotal = parseInt(localStorage.getItem('SHUMEI_MY_JYOREI_NON_BELIEVER_TOTAL') || '0');
-  const streak = parseInt(localStorage.getItem('SHUMEI_MY_JYOREI_STREAK') || '0');
+    const myName = currentReporterName || localStorage.getItem('SHUMEI_LAST_REPORTER_NAME') || '';
 
-  document.getElementById('stat-believer-total').innerText = believerTotal;
-  document.getElementById('stat-non-believer-total').innerText = nonBelieverTotal;
-  document.getElementById('stat-streak').innerText = `${streak} 天`;
+    snap.forEach(doc => {
+      const d = doc.data();
+      const b = parseInt(d.totalBeliever ?? d.selfBeliever ?? 0) || 0;
+      const nb = parseInt(d.totalNonBeliever ?? d.selfNonBeliever ?? 0) || 0;
+      const g = parseInt(d.grandTotal ?? (b + nb)) || (b + nb);
+
+      totalPracticed += g;
+      totalBelievers += b;
+      totalNonBelievers += nb;
+
+      if (myName && d.reporter === myName) {
+        myBelieverTotal += b;
+        myNonBelieverTotal += nb;
+      }
+    });
+
+    const counterEl = document.getElementById('global-counter');
+    if (counterEl) counterEl.innerText = totalPracticed.toLocaleString();
+
+    const logsCountEl = document.getElementById('global-logs-count');
+    if (logsCountEl) logsCountEl.innerText = `${snap.size} 筆紀錄`;
+
+    const gBelieversEl = document.getElementById('stat-global-believers');
+    if (gBelieversEl) gBelieversEl.innerText = totalBelievers.toLocaleString();
+
+    const gNonBelieversEl = document.getElementById('stat-global-non-believers');
+    if (gNonBelieversEl) gNonBelieversEl.innerText = totalNonBelievers.toLocaleString();
+
+    const updatedTimeEl = document.getElementById('jyorei-updated-time');
+    if (updatedTimeEl) {
+      const now = new Date();
+      updatedTimeEl.innerText = `更新於 ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+    }
+
+    // 個人成就卡片
+    const myBelieverEl = document.getElementById('stat-believer-total');
+    if (myBelieverEl) myBelieverEl.innerText = myBelieverTotal;
+
+    const myNonBelieverEl = document.getElementById('stat-non-believer-total');
+    if (myNonBelieverEl) myNonBelieverEl.innerText = myNonBelieverTotal;
+
+  } catch (err) {
+    console.warn("Could not load jyorei stats from Firestore:", err);
+  }
 }
 
 // 載入所有名冊成員
@@ -206,7 +242,7 @@ function calculateTotalSum() {
 }
 
 // 送出打卡成果
-function submitJyoreiRecord() {
+async function submitJyoreiRecord() {
   const reporter = document.getElementById('reporter-name').value.trim();
   if (!reporter) {
     alert("請先填寫您的姓名！");
@@ -267,27 +303,15 @@ function submitJyoreiRecord() {
   };
 
   // 寫入 Firestore
-  db.collection('jyorei_logs').add(record).catch(err => {
+  try {
+    await db.collection('jyorei_logs').add(record);
+  } catch (err) {
     console.warn("Firestore record warning:", err);
-  });
+  }
 
-  // 本地快取與成就更新
-  const prevAdded = parseInt(localStorage.getItem('SHUMEI_JYOREI_ADDED_COUNT') || '0');
-  localStorage.setItem('SHUMEI_JYOREI_ADDED_COUNT', prevAdded + grandTotal);
-
-  const prevBeliever = parseInt(localStorage.getItem('SHUMEI_MY_JYOREI_BELIEVER_TOTAL') || '0');
-  localStorage.setItem('SHUMEI_MY_JYOREI_BELIEVER_TOTAL', prevBeliever + totalBeliever);
-
-  const prevNonBeliever = parseInt(localStorage.getItem('SHUMEI_MY_JYOREI_NON_BELIEVER_TOTAL') || '0');
-  localStorage.setItem('SHUMEI_MY_JYOREI_NON_BELIEVER_TOTAL', prevNonBeliever + totalNonBeliever);
-
-  // 儲存近期紀錄
-  const history = JSON.parse(localStorage.getItem('SHUMEI_JYOREI_HISTORY') || '[]');
-  history.unshift(record);
-  localStorage.setItem('SHUMEI_JYOREI_HISTORY', JSON.stringify(history.slice(0, 15)));
-
-  loadGlobalStats();
-  loadRecentLogs();
+  // 重新載入最新統計與近期紀錄
+  await loadGlobalStats();
+  await loadRecentLogs();
 
   // 重設表單
   document.getElementById('self-believer-count').value = '1';
@@ -296,38 +320,56 @@ function submitJyoreiRecord() {
   document.querySelectorAll('.lineage-non-believer-input').forEach(input => input.value = '0');
   calculateTotalSum();
 
-  alert(`🎉 感謝您的誠心實踐！\n本次打卡共記錄：信徒 ${totalBeliever} 人次、未信徒 ${totalNonBeliever} 人次（總計 ${grandTotal} 人次），光明願景持續擴展！`);
+  alert(`🎉 感謝您的誠心實踐！\n本次打卡共記錄：信徒 ${totalBeliever} 人次、未信徒 ${totalNonBeliever} 人次（總計 ${grandTotal} 人次），已真實記錄於資料庫！`);
 }
 
-// 載入近期紀錄
-function loadRecentLogs() {
+// 載入近期紀錄 (直接讀取 Firestore jyorei_logs)
+async function loadRecentLogs() {
   const container = document.getElementById('recent-logs');
-  const history = JSON.parse(localStorage.getItem('SHUMEI_JYOREI_HISTORY') || '[]');
+  if (!container) return;
 
-  if (history.length === 0) {
-    container.innerHTML = `
-      <div class="text-center py-3 text-muted small">尚無最近打卡紀錄，完成首次打卡即可在此看見動態！</div>
-    `;
-    return;
-  }
+  try {
+    const snap = await db.collection('jyorei_logs').get();
+    if (snap.empty) {
+      container.innerHTML = `
+        <div class="text-center py-3 text-muted small">尚無打卡紀錄，完成首次打卡即可在此看見動態！</div>
+      `;
+      return;
+    }
 
-  let html = '';
-  history.forEach(h => {
-    const detailText = h.lineageDetails && h.lineageDetails.length > 0 
-      ? `(含靈線夥伴: ${h.lineageDetails.map(d => `${d.name} [信:${d.believer}/未:${d.nonBeliever}]`).join(', ')})`
-      : '';
+    const logs = [];
+    snap.forEach(doc => logs.push({ id: doc.id, ...doc.data() }));
 
-    html += `
-      <div class="list-group-item bg-dark text-light border-secondary small d-flex flex-wrap justify-content-between align-items-center py-2">
-        <div>
-          <span class="badge bg-warning text-dark me-2">${h.date}</span>
-          <strong class="text-white">${h.reporter}</strong>
-          <span class="text-muted ms-2">信徒 <strong>${h.totalBeliever || (h.selfBeliever || 0)}</strong> 人・未信徒 <strong>${h.totalNonBeliever || (h.selfNonBeliever || 0)}</strong> 人</span>
-          <div class="text-info" style="font-size: 11px;">${detailText}</div>
+    // 依時間倒序排列
+    logs.sort((a, b) => {
+      const tA = a.timestamp?.seconds || 0;
+      const tB = b.timestamp?.seconds || 0;
+      if (tA !== tB) return tB - tA;
+      return (b.date || '').localeCompare(a.date || '');
+    });
+
+    const recent = logs.slice(0, 15);
+    let html = '';
+    recent.forEach(h => {
+      const detailText = h.lineageDetails && h.lineageDetails.length > 0 
+        ? `(含靈線夥伴: ${h.lineageDetails.map(d => `${d.name} [信:${d.believer}/未:${d.nonBeliever}]`).join(', ')})`
+        : '';
+
+      html += `
+        <div class="list-group-item bg-dark text-light border-secondary small d-flex flex-wrap justify-content-between align-items-center py-2">
+          <div>
+            <span class="badge bg-warning text-dark me-2">${h.date || '今日'}</span>
+            <strong class="text-white">${h.reporter || '成員'}</strong>
+            <span class="text-muted ms-2">信徒 <strong>${h.totalBeliever || (h.selfBeliever || 0)}</strong> 人・未信徒 <strong>${h.totalNonBeliever || (h.selfNonBeliever || 0)}</strong> 人</span>
+            <div class="text-info" style="font-size: 11px;">${detailText}</div>
+          </div>
+          <span class="badge bg-success font-weight-bold ms-auto" style="font-size: 12px;">+${h.grandTotal || (h.totalBeliever + h.totalNonBeliever) || 1} 人次</span>
         </div>
-        <span class="badge bg-success font-weight-bold ms-auto" style="font-size: 12px;">+${h.grandTotal || h.totalGive || 0} 人次</span>
-      </div>
-    `;
-  });
-  container.innerHTML = html;
+      `;
+    });
+    container.innerHTML = html;
+  } catch (err) {
+    console.warn("Could not load recent logs from Firestore:", err);
+    container.innerHTML = `<div class="text-center py-3 text-muted small">暫時無法讀取近期紀錄。</div>`;
+  }
 }

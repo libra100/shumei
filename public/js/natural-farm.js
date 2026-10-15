@@ -15,126 +15,12 @@ if (!firebase.apps.length) {
 const db = firebase.firestore();
 const auth = firebase.auth();
 
-// Default Mock Data for Instant Interactive Showcase & Local Fallback
-const DEFAULT_EVENTS = [
-  {
-    id: 'event_dining_01',
-    title: '光之餐桌：初夏旬味無菜單料理',
-    category: 'dining',
-    categoryName: '🍽️ 餐桌料理',
-    bannerUrl: 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=800&q=80',
-    description: '在星空與稻浪之間，品嚐 100% 秀明自然農法自家採種作物，感受零農藥、無肥料土地的原初純淨風味。主廚特別研發初夏番茄無水料理與手作豆花。',
-    location: '南投縣埔里鎮自然農法示範園區 (光之餐桌戶外木平台)',
-    mapUrl: 'https://maps.google.com/?q=埔里秀明示範農場',
-    pricing: 'NT$ 1,200 (保證金席位 / 現場返還)',
-    bringUtensilsBonus: '+20 Karma',
-    sessions: [
-      { id: 's1', date: '2026-06-06 (六)', time: '17:30 - 20:00', max: 20, booked: 18, waitlist: 0 },
-      { id: 's2', date: '2026-06-07 (日)', time: '17:30 - 20:00', max: 20, booked: 20, waitlist: 2 }
-    ]
-  },
-  {
-    id: 'event_farm_02',
-    title: '自然農法水稻插秧與奉仕日',
-    category: 'farm_exp',
-    categoryName: '🌱 農事體驗',
-    bannerUrl: 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80',
-    description: '赤腳踏入肥沃的自然農法水田，親手種下自家採種第 12 代越光米秧苗。體驗人與土地最深層的肌膚接觸與奉仕喜悅。',
-    location: '宜蘭縣員山鄉秀明純淨水源田區',
-    mapUrl: 'https://maps.google.com/?q=宜蘭員山水稻田',
-    pricing: '免費公益 / 歡迎自備環保水壺與換洗衣物',
-    bringUtensilsBonus: '+40 Karma (奉仕加碼)',
-    sessions: [
-      { id: 's1', date: '2026-05-23 (六)', time: '09:00 - 12:30', max: 30, booked: 15, waitlist: 0 },
-      { id: 's2', date: '2026-05-24 (日)', time: '09:00 - 12:30', max: 30, booked: 28, waitlist: 0 }
-    ]
-  },
-  {
-    id: 'event_seed_03',
-    title: '水花園市集：自家採種工作坊與種子交換',
-    category: 'seed_saving',
-    categoryName: '🧬 保種工作坊',
-    bannerUrl: 'https://images.unsplash.com/photo-1488459716781-31db52582fe9?auto=format&fit=crop&w=800&q=80',
-    description: '深入了解作物生命基因與自留種技術。學習如何挑選健壯種母、乾燥保存種子，並參與「產地限定種子交換會」。',
-    location: '台北市大安區水花園有機農夫市集',
-    mapUrl: 'https://maps.google.com/?q=台北水花園市集',
-    pricing: '免費參與 / 贈送自家採種種子包一份',
-    bringUtensilsBonus: '+30 Karma',
-    sessions: [
-      { id: 's1', date: '2026-05-30 (六)', time: '14:00 - 16:30', max: 25, booked: 12, waitlist: 0 }
-    ]
-  },
-  {
-    id: 'event_market_04',
-    title: '自然農法當令生鮮市集與盲測品嚐',
-    category: 'market',
-    categoryName: '🧺 市集出攤',
-    bannerUrl: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=800&q=80',
-    description: '產地直送純淨蔬果！現場設置「味覺盲測區」，親口品鑑自然農法蔬菜與慣行蔬菜的純淨度與甜度差異。',
-    location: '台中市西區草悟道市集專區',
-    mapUrl: 'https://maps.google.com/?q=台中草悟道',
-    pricing: '自由入場 / 盲測集點換好禮',
-    bringUtensilsBonus: '+20 Karma',
-    sessions: [
-      { id: 's1', date: '2026-06-13 (六)', time: '10:00 - 17:00', max: 100, booked: 42, waitlist: 0 }
-    ]
-  }
-];
-
-const DEFAULT_FEED = [
-  {
-    id: 'feed_01',
-    authorName: '陳志遠 (埔里秀明示範農場)',
-    solarTerm: '立夏',
-    date: '2026-05-12',
-    title: '今日越光米秧苗晨露與根系呼吸',
-    content: '清晨五點來到田區，陽光穿透薄霧灑在水稻葉片上。自然農法的泥土捏起來帶著天然的清香，沒有任何刺鼻肥料味。根系已經牢牢抓住深層土壤，展現出驚人的生命力！',
-    imageUrl: 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=800&q=80',
-    likes: 48,
-    comments: 6
-  },
-  {
-    id: 'feed_02',
-    authorName: '林素真 (員山有機水源區)',
-    solarTerm: '立夏',
-    date: '2026-05-10',
-    title: '自家採種第 9 代黑豆開花期的生態訪客',
-    content: '田埂旁的野花引來了大批本土野蜂協助授粉。不用農藥後，整個農場成為了昆蟲與鳥類的庇護所，作物與大自然真正達成了和諧共生。',
-    imageUrl: 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80',
-    likes: 35,
-    comments: 3
-  }
-];
-
-const DEFAULT_REVIEWS = [
-  {
-    id: 'rev_01',
-    authorName: '黃雅筑 (食農教育工作者)',
-    eventName: '光之餐桌：初夏旬味無菜單料理',
-    purityRating: 5,
-    connectionRating: 5,
-    expRating: 5,
-    date: '2026-05-08',
-    content: '第一口吃下番茄冷湯時眼淚差點流出來，那是完全沒有任何化學添加的純粹甜味與果酸！吃完後身體感覺無比輕盈，真心推薦大家一定要來體驗一次自然農法餐桌。',
-    karmaEarned: 50
-  },
-  {
-    id: 'rev_02',
-    authorName: '張書銘 (軟體工程師)',
-    eventName: '自然農法水稻插秧日',
-    purityRating: 5,
-    connectionRating: 5,
-    expRating: 5,
-    date: '2026-05-02',
-    content: '平常坐在辦公室打電腦，第一次赤腳踩進水田的那一刻，感受到了泥土的溫度與生命力。自備環保餐具還賺到了 40 點 Karma 點數，太棒了！',
-    karmaEarned: 50
-  }
-];
-
-// App State Management
-let currentEvents = [...DEFAULT_EVENTS];
+// Real Database States (No Mock Data)
+let currentEvents = [];
+let feedPosts = [];
+let reviews = [];
 let currentCategory = 'all';
-let userKarma = parseInt(localStorage.getItem('shumei_user_karma') || '380', 10);
+let userKarma = parseInt(localStorage.getItem('shumei_user_karma') || '0', 10);
 let userBookings = JSON.parse(localStorage.getItem('shumei_user_bookings') || '[]');
 let userVouchers = JSON.parse(localStorage.getItem('shumei_user_vouchers') || '[]');
 let currentSelectedEvent = null;
@@ -144,27 +30,64 @@ document.addEventListener('DOMContentLoaded', () => {
   updateKarmaDisplay();
   updateMyBookingsBadge();
   renderVouchersList();
-  renderEvents();
-  renderFeedPosts();
-  renderReviews();
   fetchFirestoreData();
+  fetchFirestoreFeed();
+  fetchFirestoreReviews();
   checkAndHandleTraceUrl();
 });
 
-// Sync data from Firestore if available
-function fetchFirestoreData() {
-  db.collection('natural_events').get().then(snapshot => {
+// Sync events from Firestore natural_events
+async function fetchFirestoreData() {
+  try {
+    const snapshot = await db.collection('natural_events').get();
+    currentEvents = [];
     if (!snapshot.empty) {
-      const remoteEvents = [];
       snapshot.forEach(doc => {
-        remoteEvents.push({ id: doc.id, ...doc.data() });
+        currentEvents.push({ id: doc.id, ...doc.data() });
       });
-      currentEvents = remoteEvents;
-      renderEvents();
     }
-  }).catch(err => {
-    console.log("Firestore events offline or using defaults:", err);
-  });
+    renderEvents();
+  } catch (err) {
+    console.warn("Firestore events error:", err);
+    currentEvents = [];
+    renderEvents();
+  }
+}
+
+// Sync feed from Firestore natural_feed
+async function fetchFirestoreFeed() {
+  try {
+    const snapshot = await db.collection('natural_feed').get();
+    feedPosts = [];
+    if (!snapshot.empty) {
+      snapshot.forEach(doc => {
+        feedPosts.push({ id: doc.id, ...doc.data() });
+      });
+    }
+    renderFeedPosts();
+  } catch (err) {
+    console.warn("Firestore feed error:", err);
+    feedPosts = [];
+    renderFeedPosts();
+  }
+}
+
+// Sync reviews from Firestore natural_reviews
+async function fetchFirestoreReviews() {
+  try {
+    const snapshot = await db.collection('natural_reviews').get();
+    reviews = [];
+    if (!snapshot.empty) {
+      snapshot.forEach(doc => {
+        reviews.push({ id: doc.id, ...doc.data() });
+      });
+    }
+    renderReviews();
+  } catch (err) {
+    console.warn("Firestore reviews error:", err);
+    reviews = [];
+    renderReviews();
+  }
 }
 
 // Custom Glass Toast Notification
@@ -577,7 +500,17 @@ function renderFeedPosts() {
   const container = document.getElementById('feedPostsContainer');
   if (!container) return;
 
-  container.innerHTML = DEFAULT_FEED.map((feed, idx) => `
+  if (feedPosts.length === 0) {
+    container.innerHTML = `
+      <div class="text-center py-4 text-muted small farm-card">
+        <i class="fa-solid fa-seedling fa-2x mb-2 text-success opacity-50"></i>
+        <p class="mb-0">目前尚無產地即時日誌。農友於產地發布日誌後將自動呈現於此！</p>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = feedPosts.map((feed, idx) => `
     <div class="farm-card mb-3 stagger-item" style="animation-delay: ${idx * 80}ms;">
       <div class="d-flex justify-content-between align-items-center mb-2">
         <div class="d-flex align-items-center gap-2">
@@ -585,26 +518,28 @@ function renderFeedPosts() {
             <i class="fa-solid fa-user-astronaut text-white" style="font-size: 0.9rem;"></i>
           </div>
           <div>
-            <div class="fw-bold text-white small">${feed.authorName}</div>
-            <div class="text-muted" style="font-size: 0.72rem;">${feed.date} · 節氣：${feed.solarTerm}</div>
+            <div class="fw-bold text-white small">${feed.authorName || '秀明農友'}</div>
+            <div class="text-muted" style="font-size: 0.72rem;">${feed.date || ''} · 節氣：${feed.solarTerm || '當令'}</div>
           </div>
         </div>
         <span class="seed-gen-tag"><i class="fa-solid fa-leaf me-1"></i>產地即時筆記</span>
       </div>
 
-      <h5 class="fw-bold text-white mb-2">${feed.title}</h5>
-      <p class="small text-light mb-3">${feed.content}</p>
+      <h5 class="fw-bold text-white mb-2">${feed.title || ''}</h5>
+      <p class="small text-light mb-3">${feed.content || ''}</p>
 
-      <div class="rounded-3 overflow-hidden mb-3" style="max-height: 260px;">
-        <img src="${feed.imageUrl}" alt="${feed.title}" class="w-100 h-100 object-fit-cover">
-      </div>
+      ${feed.imageUrl ? `
+        <div class="rounded-3 overflow-hidden mb-3" style="max-height: 260px;">
+          <img src="${feed.imageUrl}" alt="${feed.title || ''}" class="w-100 h-100 object-fit-cover">
+        </div>
+      ` : ''}
 
       <div class="d-flex justify-content-between align-items-center small text-muted">
         <div class="d-flex gap-3">
-          <span class="interactive text-light" onclick="likeFeedPost(this, ${feed.likes})"><i class="fa-regular fa-heart me-1"></i> ${feed.likes}</span>
-          <span class="interactive text-light" onclick="openAskFarmerModal('${feed.authorName.split(' ')[0]}')"><i class="fa-regular fa-comment me-1"></i> ${feed.comments}</span>
+          <span class="interactive text-light" onclick="likeFeedPost(this, ${feed.likes || 0})"><i class="fa-regular fa-heart me-1"></i> ${feed.likes || 0}</span>
+          <span class="interactive text-light" onclick="openAskFarmerModal('${(feed.authorName || '農友').split(' ')[0]}')"><i class="fa-regular fa-comment me-1"></i> ${feed.comments || 0}</span>
         </div>
-        <button class="btn btn-sm btn-outline-light rounded-pill px-3 py-0 interactive" onclick="shareFeed('${feed.title}')">
+        <button class="btn btn-sm btn-outline-light rounded-pill px-3 py-0 interactive" onclick="shareFeed('${feed.title || ''}')">
           <i class="fa-solid fa-share-nodes me-1"></i> 分享
         </button>
       </div>
@@ -629,22 +564,31 @@ function renderReviews() {
   const container = document.getElementById('reviewsGrid');
   if (!container) return;
 
-  container.innerHTML = DEFAULT_REVIEWS.map((rev, idx) => `
+  if (reviews.length === 0) {
+    container.innerHTML = `
+      <div class="col-12 text-center py-4 text-muted small">
+        <p class="mb-0">目前尚無心得評價，歡迎參與活動後填寫分享！</p>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = reviews.map((rev, idx) => `
     <div class="col-md-6 stagger-item" style="animation-delay: ${idx * 70}ms;">
       <div class="farm-card h-100 interactive">
         <div class="d-flex justify-content-between align-items-center mb-2">
-          <div class="fw-bold text-white">${rev.authorName}</div>
-          <span class="text-muted small">${rev.date}</span>
+          <div class="fw-bold text-white">${rev.authorName || '訪客'}</div>
+          <span class="text-muted small">${rev.date || ''}</span>
         </div>
-        <div class="text-warning small mb-2"><i class="fa-solid fa-bullhorn me-1"></i>${rev.eventName}</div>
+        <div class="text-warning small mb-2"><i class="fa-solid fa-bullhorn me-1"></i>${rev.eventName || '自然農法活動'}</div>
 
         <!-- 3-Dimension Sensory Badges -->
         <div class="mb-3">
-          <span class="sensory-badge"><i class="fa-solid fa-droplet text-info me-1"></i>純淨度: ${'⭐'.repeat(rev.purityRating)}</span>
-          <span class="sensory-badge"><i class="fa-solid fa-earth-americas text-success me-1"></i>土地連結: ${'⭐'.repeat(rev.connectionRating)}</span>
+          <span class="sensory-badge"><i class="fa-solid fa-droplet text-info me-1"></i>純淨度: ${'⭐'.repeat(rev.purityRating || 5)}</span>
+          <span class="sensory-badge"><i class="fa-solid fa-earth-americas text-success me-1"></i>土地連結: ${'⭐'.repeat(rev.connectionRating || 5)}</span>
         </div>
 
-        <p class="small text-light mb-2">「${rev.content}」</p>
+        <p class="small text-light mb-2">「${rev.content || ''}」</p>
       </div>
     </div>
   `).join('');
