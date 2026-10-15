@@ -159,13 +159,18 @@ exports.processLineEvent = onMessagePublished(
           grouped[dateKey].push(sem);
         });
 
-        let replyText = "桃子座談會\n";
+        let replyText = "🍑桃子座談會" + targetMonth + "月\n";
         let count = 1;
         
         for (const dateKey of Object.keys(grouped)) {
           replyText += "🔺" + dateKey + "\n";
           grouped[dateKey].forEach(sem => {
-            let attendeesStr = (sem.attendees && sem.attendees !== "無" && sem.attendees.trim() !== "") ? "（" + sem.attendees + "）" : "";
+            let attendeesStr = "";
+            if (sem.attendees && sem.attendees !== "無" && sem.attendees.trim() !== "") {
+              // 將逗號統一替換成頓號，去除多餘空格
+              let cleanedAttendees = sem.attendees.replace(/[,，\s]+/g, "、").replace(/^、|、$/g, "");
+              attendeesStr = "（" + cleanedAttendees + "）";
+            }
             replyText += count + "." + sem.memberName + attendeesStr + "\n";
             count++;
           });
@@ -192,7 +197,8 @@ exports.processLineEvent = onMessagePublished(
     }
 
     const genAI = new GoogleGenerativeAI(geminiApiKey.value());
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    // 升級至最新的 Gemini 3.8 Flash 模型
+    const model = genAI.getGenerativeModel({ model: "gemini-3.8-flash" });
 
     try {
       const nowStr = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false });
@@ -200,18 +206,19 @@ exports.processLineEvent = onMessagePublished(
 現在的台北時間是：${nowStr}
 目前發話者的 LINE 名稱是：「${userName}」
 
-請分析以下使用者的訊息，判斷是否為「單筆座談會報名/登記」。
+請分析以下使用者的訊息，判斷是否為「單筆座談會報名/登記」，或是一般的疑問/閒聊。
 只要使用者提到「進行座談」、「跟...座談」、「開會」、「見面」且包含人名與時間地點，就請視為座談會登記 (isRegistration: true)。
 
 ⚠️ 重要排除規則：
 1. 如果訊息內容屬於「統計列表」、「總覽簡報」、「名單整理」、「座談會行程總結」（例如含有多個日期如 🔺8/21、8/22、或多位成員的整理列表），請務必將 \`isRegistration\` 設為 \`false\`！
 2. 如果無法確定或無法擷取出明確的「成員姓名 (memberName)」或「日期 (date)」，請務必將 \`isRegistration\` 設為 \`false\`！
+3. 如果使用者是在「詢問問題」（例如：「誰有超過100件」、「請問...」等非登記內容），請將 \`isRegistration\` 設為 \`false\`，並在 \`reply\` 欄位給出親切簡短的回答。
 
 如果訊息中有提到相對時間（例如：今天、明天、後天、下週一等），請務必根據上方提供的「現在的台北時間」自動推算，並將 \`date\` 轉換成絕對的日期格式（例如：YYYY/MM/DD 或 YYYY-MM-DD）。
 如果訊息內容有提到「我」，請將「我」自動對應並替換成發話者的名字（${userName}），並在擷取成員名單或對象者時，直接填寫此名字。
 
-請從中擷取相關資訊，並以 JSON 格式回傳，必須包含以下欄位：
-- isRegistration (布林值：是否為單筆座談會報名/登記，若否或為統計/列表則設為 false)
+請以 JSON 格式回傳，必須包含以下欄位：
+- isRegistration (布林值：是否為單筆座談會報名/登記，若否則設為 false)
 - date (字串：日期，若無則為 null)
 - time (字串：時間，若無則為 null)
 - location (字串：地點，若無則為 null)
@@ -219,6 +226,7 @@ exports.processLineEvent = onMessagePublished(
 - feelings (字串：當下的感受或內容，若無則為 null)
 - goals (字串：信仰提升的目標或討論重點，若無則為 null)
 - attendees (字串：其他參加者名單，若無則為 null)
+- reply (字串：若非登記且使用者在提問時的回應內容；若是群組一般閒聊則為 null)
 
 若完全無關座談或為列表統計，isRegistration 請設為 false。
 請直接回傳 JSON 字串，不要包含任何 Markdown 標記（例如 \`\`\`json 等）。
@@ -236,6 +244,8 @@ exports.processLineEvent = onMessagePublished(
         parsedData = JSON.parse(cleanText);
       } catch (e) {
         logger.error("Failed to parse Gemini response as JSON", e);
+        // AI 回應解析非預期 JSON 時，若在群組中且非 tag，則靜默略過，不報錯打擾群組
+        if (!isPrivateChat && !isTagged) return;
         throw new Error("AI 解析失敗");
       }
 
@@ -265,10 +275,13 @@ exports.processLineEvent = onMessagePublished(
 
         replyText = "收到您的登記資訊！\n\n成員：" + parsedData.memberName + "\n日期：" + parsedData.date + " " + (parsedData.time || "") + "\n地點：" + (parsedData.location || "未提供") + "\n感受：" + (parsedData.feelings || "未提供") + "\n目標：" + (parsedData.goals || "未提供") + "\n參加者：" + (parsedData.attendees || "無") + "\n\n已為您成功同步至網站紀錄！\n🔗 點此查看網站紀錄：\n" + webUrl;
       } else {
-        // 如果不是有效登記：只有 1對1 個人對話，或是群組中有明確 tag 機器人，才回覆提示教學訊息
-        if (isPrivateChat || isTagged) {
-          replyText = "您好！如果您想紀錄座談會，請輸入包含：時間、地點、主要成員、感受、目標以及其他參加者的資訊喔！可以直接用口語的方式告訴我～";
+        // 如果不是有效登記：
+        if (parsedData.reply && (isPrivateChat || isTagged)) {
+          replyText = parsedData.reply;
+        } else if (isPrivateChat || isTagged) {
+          replyText = "您好！如果您想紀錄座談會，請輸入包含：時間、地點、主要成員、感受、目標以及其他參加者的資訊喔！可以直接用口語的方式告訴我～\n若要查詢當月座談會，請輸入「9月統計」或「統計」。";
         }
+        // 若在群組且非 @ 標記，也不屬於有效登記與提問，則保持安靜 (replyText 為空)
       }
 
       if (replyText !== "") {
@@ -281,7 +294,8 @@ exports.processLineEvent = onMessagePublished(
 
     } catch (error) {
       logger.error("Error processing event", error);
-      if (replyToken) {
+      // 只有在 1對1 私聊或明確 @ 標註時才回報系統忙碌，避免群組聊天觸發關鍵字時狂跳錯誤訊息
+      if (replyToken && (isPrivateChat || isTagged)) {
         await client.replyMessage({
           replyToken: replyToken,
           messages: [{ type: "text", text: "抱歉，系統目前有些忙碌，請稍後再試一次。" }],

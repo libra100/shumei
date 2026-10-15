@@ -16,16 +16,32 @@ const auth = firebase.auth();
 
 const GANTTCRAFT_URL = "https://firestore.googleapis.com/v1/projects/gantt-craft-2026/databases/(default)/documents/ganttcraft_projects/shumei";
 
-// Standard Recruitment Jobs Definition
-const RECRUITMENT_JOBS = [
-  { id: 'tag_worship', label: '參拜護持', icon: '🙏', desc: '參拜日前置準備、引導與現場奉事協助' },
-  { id: 'tag_study', label: '上秀勉', icon: '📖', desc: '秀勉學習共修、教誨研讀與心得分享' },
-  { id: 'tag_bag', label: '換神光袋', icon: '✨', desc: '定期更換神光袋、儀式配合與協助' },
-  { id: 'tag_johrei', label: '淨靈實踐推廣', icon: '☀️', desc: '道場或定點結伴淨靈、施光實踐行動' },
-  { id: 'tag_nonbeliever', label: '未信徒引導接待', icon: '🤝', desc: '新朋友初次到訪引導、體驗與交流分享' },
-  { id: 'tag_counter', label: '青年櫃檯接待值班', icon: '🛎️', desc: '週末青年輪值櫃檯、簽到引導與茶水接待' },
-  { id: 'tag_farm', label: '自然農法農事協力', icon: '🌾', desc: '秀明自然農法田間除草、播種與採收護持' }
+// Standard Recruitment Jobs Definition & Dynamic Storage
+const DEFAULT_RECRUITMENT_JOBS = [
+  { id: 'tag_worship', label: '參拜護持', icon: '🙏', desc: '參拜日前置準備、引導與現場奉事協助', active: true },
+  { id: 'tag_study', label: '上秀勉', icon: '📖', desc: '秀勉學習共修、教誨研讀與心得分享', active: true },
+  { id: 'tag_bag', label: '換神光袋', icon: '✨', desc: '定期更換神光袋、儀式配合與協助', active: true },
+  { id: 'tag_johrei', label: '淨靈實踐推廣', icon: '☀️', desc: '道場或定點結伴淨靈、施光實踐行動', active: true },
+  { id: 'tag_nonbeliever', label: '未信徒引導接待', icon: '🤝', desc: '新朋友初次到訪引導、體驗與交流分享', active: true },
+  { id: 'tag_counter', label: '青年櫃檯接待值班', icon: '🛎️', desc: '週末青年輪值櫃檯、簽到引導與茶水接待', active: true },
+  { id: 'tag_farm', label: '自然農法農事協力', icon: '🌾', desc: '秀明自然農法田間除草、播種與採收護持', active: true }
 ];
+
+let recruitmentJobs = [...DEFAULT_RECRUITMENT_JOBS];
+
+async function fetchRecruitmentJobs() {
+  try {
+    const doc = await db.collection('info').doc('recruitment_jobs').get();
+    if (doc.exists && Array.isArray(doc.data().jobs) && doc.data().jobs.length > 0) {
+      recruitmentJobs = doc.data().jobs;
+    } else {
+      recruitmentJobs = [...DEFAULT_RECRUITMENT_JOBS];
+    }
+  } catch (e) {
+    console.warn("Could not fetch info/recruitment_jobs, fallback to defaults:", e);
+    recruitmentJobs = [...DEFAULT_RECRUITMENT_JOBS];
+  }
+}
 
 let currentMember = null; // { id, name, part, leader }
 let allMembersCache = [];
@@ -86,6 +102,8 @@ function initMemberPage(user) {
   });
 }
 
+let distinctGroupsCache = [];
+
 async function loadMemberList() {
   try {
     const snap = await db.collection('member').get();
@@ -94,35 +112,159 @@ async function loadMemberList() {
       allMembersCache.push({ id: doc.id, ...doc.data() });
     });
 
-    const select = document.getElementById('select-member-name');
-    if (select) {
-      select.innerHTML = '<option value="" disabled selected>請選擇您的姓名</option>';
-      allMembersCache
-        .filter(m => m.name)
-        .sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'))
-        .forEach(m => {
-          const opt = document.createElement('option');
-          opt.value = m.id;
-          opt.innerText = `${m.name} (${m.leader || '未分組'} - 入信 ${m.id.split('A')[0]})`;
-          select.appendChild(opt);
-        });
+    // 嘗試從 info/youth 取得官方組別推薦順序
+    let orderedLeaders = [];
+    try {
+      const youthDoc = await db.collection('info').doc('youth').get();
+      if (youthDoc.exists && Array.isArray(youthDoc.data().leader)) {
+        orderedLeaders = youthDoc.data().leader;
+      }
+    } catch (e) {
+      console.warn("Could not fetch info/youth leaders:", e);
     }
+
+    // 統計各組人數
+    const groupCountMap = {};
+    allMembersCache.forEach(m => {
+      if (!m.name) return;
+      const g = (m.leader && m.leader.trim() !== '') ? m.leader.trim() : '未分組';
+      groupCountMap[g] = (groupCountMap[g] || 0) + 1;
+    });
+
+    // 建立組別清單：先依 youth 排列，再放其他組別，最後放未分組
+    const groupsSet = new Set(Object.keys(groupCountMap));
+    const sortedGroups = [];
+
+    orderedLeaders.forEach(l => {
+      if (groupsSet.has(l)) {
+        sortedGroups.push(l);
+        groupsSet.delete(l);
+      }
+    });
+
+    // 剩下的組別（排除未分組）
+    const remaining = Array.from(groupsSet).filter(g => g !== '未分組').sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+    sortedGroups.push(...remaining);
+
+    // 未分組放最後
+    if (groupsSet.has('未分組')) {
+      sortedGroups.push('未分組');
+    }
+
+    distinctGroupsCache = sortedGroups;
+
+    // 填充分組選單 (階段一)
+    const groupSelect = document.getElementById('select-group-name');
+    if (groupSelect) {
+      groupSelect.innerHTML = '<option value="" disabled selected>👉 請先選擇您的所屬分組...</option>';
+      sortedGroups.forEach(g => {
+        const opt = document.createElement('option');
+        opt.value = g;
+        opt.innerText = `👥 ${g} (${groupCountMap[g]} 人)`;
+        groupSelect.appendChild(opt);
+      });
+
+      // 增加全體名單選項
+      const totalNamed = allMembersCache.filter(m => m.name).length;
+      const allOpt = document.createElement('option');
+      allOpt.value = '__ALL__';
+      allOpt.innerText = `🌐 全部青年成員 (共 ${totalNamed} 人)`;
+      groupSelect.appendChild(allOpt);
+    }
+
   } catch (err) {
     console.warn("Could not load member list:", err);
   }
 }
 
+/**
+ * 分組選擇變更事件 (連動階段二：姓名選單)
+ */
+function onGroupChange(preferredMemberId) {
+  const groupSelect = document.getElementById('select-group-name');
+  const memberSelect = document.getElementById('select-member-name');
+  const labelMember = document.getElementById('label-member-name');
+  const badgeStep2 = document.getElementById('badge-step-2');
+  const hintEl = document.getElementById('group-member-count-hint');
+
+  if (!groupSelect || !memberSelect) return;
+
+  const selectedGroup = groupSelect.value;
+  if (!selectedGroup) {
+    memberSelect.disabled = true;
+    memberSelect.innerHTML = '<option value="" disabled selected>👈 請先選擇上方分組</option>';
+    if (labelMember) labelMember.className = 'form-label text-muted fw-bold small mb-1';
+    if (badgeStep2) badgeStep2.className = 'badge bg-secondary me-1';
+    if (hintEl) hintEl.innerText = '';
+    return;
+  }
+
+  // 篩選該組成員
+  let filteredMembers = [];
+  if (selectedGroup === '__ALL__') {
+    filteredMembers = allMembersCache.filter(m => m.name);
+  } else if (selectedGroup === '未分組') {
+    filteredMembers = allMembersCache.filter(m => m.name && (!m.leader || m.leader.trim() === '' || m.leader === '未分組'));
+  } else {
+    filteredMembers = allMembersCache.filter(m => m.name && m.leader && m.leader.trim() === selectedGroup);
+  }
+
+  // 按姓名筆劃排序
+  filteredMembers.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
+
+  // 啟用姓名選單
+  memberSelect.disabled = false;
+  memberSelect.style.borderColor = '#00F3FF';
+  if (labelMember) labelMember.className = 'form-label text-info fw-bold small mb-1';
+  if (badgeStep2) badgeStep2.className = 'badge bg-info text-dark me-1';
+
+  memberSelect.innerHTML = `<option value="" disabled selected>👉 請點此選取您的姓名 (${filteredMembers.length} 人)...</option>`;
+
+  filteredMembers.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m.id;
+    const shortDate = m.id.includes('A') ? m.id.split('A')[0] : '';
+    opt.innerText = `${m.name}${shortDate ? ` (入信 ${shortDate})` : ''}`;
+    if (preferredMemberId && m.id === preferredMemberId) {
+      opt.selected = true;
+    }
+    memberSelect.appendChild(opt);
+  });
+
+  if (hintEl) {
+    hintEl.innerText = `已為您列出「${selectedGroup === '__ALL__' ? '全體' : selectedGroup}」共 ${filteredMembers.length} 位成員`;
+  }
+}
+
 function openIdentitySelector() {
+  const groupSelect = document.getElementById('select-group-name');
+  if (groupSelect && currentMember) {
+    const targetGroup = currentMember.leader || '未分組';
+    if (distinctGroupsCache.includes(targetGroup)) {
+      groupSelect.value = targetGroup;
+    } else {
+      groupSelect.value = '__ALL__';
+    }
+    onGroupChange(currentMember.id);
+  }
+
   if (identityModalInstance) {
     identityModalInstance.show();
   }
 }
 
 function confirmIdentity() {
+  const groupSelect = document.getElementById('select-group-name');
   const select = document.getElementById('select-member-name');
+
+  if (!groupSelect || !groupSelect.value) {
+    alert("請先完成「步驟 1：選擇所屬分組」！");
+    return;
+  }
+
   const selectedId = select.value;
   if (!selectedId) {
-    alert("請先選取您的姓名！");
+    alert("請完成「步驟 2：選擇您的姓名」！");
     return;
   }
 
@@ -164,6 +306,9 @@ async function loadGanttCraftMemberData() {
   const listEl = document.getElementById('my-schedule-list');
 
   try {
+    // 取得最新招募設定
+    await fetchRecruitmentJobs();
+
     const res = await fetch(GANTTCRAFT_URL);
     if (!res.ok) throw new Error("GanttCraft response was not ok");
     const json = await res.json();
@@ -205,13 +350,10 @@ async function loadGanttCraftMemberData() {
           </div>
         `;
       } else {
-        const tagMap = {
-          'tag_worship': '參拜護持',
-          'tag_study': '上秀勉',
-          'tag_bag': '換神光袋',
-          'tag_johrei': '淨靈實踐',
-          'tag_nonbeliever': '未信徒引導'
-        };
+        const tagMap = {};
+        recruitmentJobs.forEach(j => {
+          tagMap[j.id] = j.label;
+        });
 
         listEl.innerHTML = myAssignments.map(a => `
           <div class="d-flex align-items-center justify-content-between p-2 mb-2 rounded" style="background: rgba(0, 243, 255, 0.06); border: 1px solid rgba(0, 243, 255, 0.2);">
@@ -265,16 +407,29 @@ function renderAvailableJobs() {
   const badgeEl = document.getElementById('my-volunteer-badge');
   if (badgeEl) badgeEl.innerText = `已登記 ${myVolunteeredTags.size} 項`;
 
-  container.innerHTML = RECRUITMENT_JOBS.map(job => {
+  // 只顯示啟用的招募項目
+  const activeJobs = recruitmentJobs.filter(job => job.active !== false);
+
+  if (activeJobs.length === 0) {
+    container.innerHTML = `
+      <div class="col-12 text-center py-4 text-muted small">
+        目前無開放招募之工作項目。
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = activeJobs.map(job => {
     const isVolunteered = myVolunteeredTags.has(job.id);
+    const safeJobLabel = encodeURIComponent(job.label || '');
     return `
       <div class="work-card ${isVolunteered ? 'volunteer-active' : ''}">
         <div class="d-flex justify-content-between align-items-start gap-2">
           <div>
             <div class="h6 mb-1 fw-bold ${isVolunteered ? 'text-success' : 'text-white'}">
-              ${job.icon} ${job.label}
+              ${escapeHtml(job.icon || '📌')} ${escapeHtml(job.label)}
             </div>
-            <p class="text-muted small mb-0">${job.desc}</p>
+            <p class="text-muted small mb-0">${escapeHtml(job.desc || '')}</p>
           </div>
           <div class="flex-shrink-0">
             ${isVolunteered ? `
@@ -282,7 +437,7 @@ function renderAvailableJobs() {
                 取消意願
               </button>
             ` : `
-              <button class="btn btn-sm btn-outline-warning interactive" onclick="openVolunteerModal('${job.id}', '${job.label}')" style="font-size: 12px; border-radius: 8px;">
+              <button class="btn btn-sm btn-outline-warning interactive" onclick="openVolunteerModal('${job.id}', '${safeJobLabel}')" style="font-size: 12px; border-radius: 8px;">
                 ✋ 我可以參與
               </button>
             `}
@@ -293,7 +448,14 @@ function renderAvailableJobs() {
   }).join('');
 }
 
-function openVolunteerModal(tagId, tagLabel) {
+function openVolunteerModal(tagId, tagLabelEncoded) {
+  let tagLabel = tagLabelEncoded;
+  try {
+    tagLabel = decodeURIComponent(tagLabelEncoded || '');
+  } catch (e) {
+    tagLabel = tagLabelEncoded || '';
+  }
+
   document.getElementById('vol-tag-id').value = tagId;
   document.getElementById('vol-tag-label').value = tagLabel;
   document.getElementById('vol-modal-job-name').innerText = tagLabel;
@@ -420,4 +582,14 @@ async function cancelVolunteerInterest(tagId) {
     console.error("Cancel volunteer error:", err);
     alert("取消失敗，請稍候再試。");
   }
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }

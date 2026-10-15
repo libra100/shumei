@@ -345,7 +345,10 @@
               </h3>
               <span class="badge bg-warning text-dark" id="volunteer-total-badge">0 人登記</span>
             </div>
-            <div class="d-flex gap-2">
+            <div class="d-flex flex-wrap gap-2">
+              <button class="btn btn-sm btn-outline-warning interactive" onclick="openManageJobsModal()" title="編輯給信徒報名的招募項目">
+                ⚙️ 編輯招募項目
+              </button>
               <button class="btn btn-sm btn-outline-danger interactive" onclick="clearMonthlyVolunteers()" title="每月清空本月意願">
                 <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" class="me-1"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
                 清空本月意願
@@ -480,6 +483,44 @@
         <span>登出</span>
       </button>
     </nav>
+
+    <!-- Manage Recruitment Jobs Modal -->
+    <div class="modal fade" id="manageJobsModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content glass-card noise-overlay" style="border: 1px solid rgba(255,255,255,0.15);">
+          <div class="modal-header border-bottom border-secondary border-opacity-25">
+            <div>
+              <h5 class="modal-title text-white fw-bold mb-0">⚙️ 編輯招募工作項目</h5>
+              <div class="text-muted small mt-1" style="font-size: 12px;">設定之項目將即時發布至一般信徒個人專區 (member/index.html) 供信徒報名參與。</div>
+            </div>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body py-3" style="max-height: 65vh; overflow-y: auto;">
+            <div id="manage-jobs-list" class="d-flex flex-column gap-3">
+              <!-- Dynamically populated rows -->
+            </div>
+            
+            <div class="d-flex justify-content-between align-items-center mt-3 pt-3 border-top border-secondary border-opacity-25">
+              <button type="button" class="btn btn-sm btn-outline-info interactive" onclick="addNewJobRow()">
+                ＋ 新增招募項目
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-secondary interactive" onclick="resetToDefaultJobs()">
+                恢復預設 7 項
+              </button>
+            </div>
+          </div>
+          <div class="modal-footer border-top border-secondary border-opacity-25 d-flex justify-content-between">
+            <span id="manage-jobs-status" class="small text-muted"></span>
+            <div class="d-flex gap-2">
+              <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">取消</button>
+              <button type="button" class="btn btn-primary-custom interactive" id="btn-save-jobs" onclick="saveRecruitmentJobs()">
+                💾 儲存並發布
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/js/bootstrap.bundle.min.js"></script>

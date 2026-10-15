@@ -177,7 +177,7 @@
       </div>
     </div>
 
-    <!-- Identity Selection Modal -->
+    <!-- Identity Selection Modal (Two-Stage Selection) -->
     <div class="modal fade" id="identityModal" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content glass-card noise-overlay" style="border: 1px solid rgba(255,255,255,0.15);">
@@ -186,14 +186,30 @@
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body py-3">
-            <p class="text-muted small mb-2">請從青年部名冊中選取您的名字：</p>
-            <select id="select-member-name" class="form-select py-2 mb-3" style="background: rgba(255,255,255,0.08); color: white; border: 1px solid rgba(255,255,255,0.2);">
-              <option value="" disabled selected>載入名冊中...</option>
-            </select>
+            <!-- 階段一：選分組 -->
+            <div class="mb-3">
+              <label class="form-label text-info fw-bold small mb-1" for="select-group-name">
+                <span class="badge bg-info text-dark me-1" style="font-size: 10px;">步驟 1</span> 請選擇所屬分組：
+              </label>
+              <select id="select-group-name" class="form-select py-2" onchange="onGroupChange()" style="background: rgba(255,255,255,0.08); color: white; border: 1px solid rgba(0, 243, 255, 0.3);">
+                <option value="" disabled selected>載入分組中...</option>
+              </select>
+            </div>
+
+            <!-- 階段二：選姓名 -->
+            <div class="mb-2">
+              <label class="form-label text-muted fw-bold small mb-1" id="label-member-name" for="select-member-name">
+                <span class="badge bg-secondary me-1" id="badge-step-2" style="font-size: 10px;">步驟 2</span> 請選擇您的姓名：
+              </label>
+              <select id="select-member-name" class="form-select py-2" disabled style="background: rgba(255,255,255,0.08); color: white; border: 1px solid rgba(255,255,255,0.2);">
+                <option value="" disabled selected>👈 請先選擇上方分組</option>
+              </select>
+              <div id="group-member-count-hint" class="small text-muted mt-1" style="font-size: 11px;"></div>
+            </div>
           </div>
           <div class="modal-footer border-top border-secondary border-opacity-25">
             <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">取消</button>
-            <button type="button" class="btn btn-primary-custom interactive" onclick="confirmIdentity()">確認送出</button>
+            <button type="button" class="btn btn-primary-custom interactive" id="btn-confirm-identity" onclick="confirmIdentity()">確認送出</button>
           </div>
         </div>
       </div>

@@ -19,6 +19,18 @@ let allMembers = [];
 let ganttAssignments = [];
 let ganttVolunteers = [];
 let currentYearMonth = '';
+let editingJobsList = [];
+let manageJobsModalInstance = null;
+
+const DEFAULT_RECRUITMENT_JOBS = [
+  { id: 'tag_worship', label: '參拜護持', icon: '🙏', desc: '參拜日前置準備、引導與現場奉事協助', active: true },
+  { id: 'tag_study', label: '上秀勉', icon: '📖', desc: '秀勉學習共修、教誨研讀與心得分享', active: true },
+  { id: 'tag_bag', label: '換神光袋', icon: '✨', desc: '定期更換神光袋、儀式配合與協助', active: true },
+  { id: 'tag_johrei', label: '淨靈實踐推廣', icon: '☀️', desc: '道場或定點結伴淨靈、施光實踐行動', active: true },
+  { id: 'tag_nonbeliever', label: '未信徒引導接待', icon: '🤝', desc: '新朋友初次到訪引導、體驗與交流分享', active: true },
+  { id: 'tag_counter', label: '青年櫃檯接待值班', icon: '🛎️', desc: '週末青年輪值櫃檯、簽到引導與茶水接待', active: true },
+  { id: 'tag_farm', label: '自然農法農事協力', icon: '🌾', desc: '秀明自然農法田間除草、播種與採收護持', active: true }
+];
 
 const GANTTCRAFT_URL = "https://firestore.googleapis.com/v1/projects/gantt-craft-2026/databases/(default)/documents/ganttcraft_projects/shumei";
 
@@ -184,13 +196,7 @@ async function loadGanttCraftData() {
     if (loadingEl) loadingEl.classList.add('d-none');
     if (summaryEl) {
       summaryEl.classList.remove('d-none');
-      const tagLabels = {
-        'tag_worship': '參拜',
-        'tag_study': '上秀勉',
-        'tag_bag': '換神光袋',
-        'tag_johrei': '淨靈實踐',
-        'tag_nonbeliever': '未信徒引導'
-      };
+      const tagLabels = await getDynamicTagLabels();
 
       const keys = Object.keys(tagCounts);
       if (keys.length === 0) {
@@ -405,4 +411,236 @@ function switchSidebar(el) {
     item.classList.remove('active');
   });
   el.classList.add('active');
+}
+
+/**
+ * 5. 工作招募項目管理與動態標籤
+ */
+async function getDynamicTagLabels() {
+  const map = {
+    'tag_worship': '參拜護持',
+    'tag_study': '上秀勉',
+    'tag_bag': '換神光袋',
+    'tag_johrei': '淨靈實踐',
+    'tag_nonbeliever': '未信徒引導',
+    'tag_counter': '青年櫃檯接待',
+    'tag_farm': '自然農法協力'
+  };
+  try {
+    const doc = await db.collection('info').doc('recruitment_jobs').get();
+    if (doc.exists && Array.isArray(doc.data().jobs)) {
+      doc.data().jobs.forEach(j => {
+        if (j.id && j.label) {
+          map[j.id] = j.label;
+        }
+      });
+    }
+  } catch (e) {
+    console.warn("Could not fetch recruitment_jobs for tag labels:", e);
+  }
+  return map;
+}
+
+async function openManageJobsModal() {
+  const modalEl = document.getElementById('manageJobsModal');
+  if (!modalEl) return;
+  if (!manageJobsModalInstance) {
+    manageJobsModalInstance = new bootstrap.Modal(modalEl);
+  }
+
+  const listEl = document.getElementById('manage-jobs-list');
+  const statusEl = document.getElementById('manage-jobs-status');
+  if (statusEl) statusEl.innerText = '讀取中...';
+  if (listEl) {
+    listEl.innerHTML = '<div class="text-center py-4 text-muted small"><div class="spinner-border spinner-border-sm text-warning me-1"></div>正在載入目前招募項目...</div>';
+  }
+
+  manageJobsModalInstance.show();
+
+  try {
+    const doc = await db.collection('info').doc('recruitment_jobs').get();
+    if (doc.exists && Array.isArray(doc.data().jobs) && doc.data().jobs.length > 0) {
+      editingJobsList = JSON.parse(JSON.stringify(doc.data().jobs));
+    } else {
+      editingJobsList = JSON.parse(JSON.stringify(DEFAULT_RECRUITMENT_JOBS));
+    }
+    if (statusEl) statusEl.innerText = `目前共 ${editingJobsList.length} 項`;
+    renderJobsEditList();
+  } catch (err) {
+    console.error("Error loading recruitment jobs:", err);
+    editingJobsList = JSON.parse(JSON.stringify(DEFAULT_RECRUITMENT_JOBS));
+    if (statusEl) statusEl.innerText = '使用預設設定';
+    renderJobsEditList();
+  }
+}
+
+function renderJobsEditList() {
+  const listEl = document.getElementById('manage-jobs-list');
+  if (!listEl) return;
+
+  if (editingJobsList.length === 0) {
+    listEl.innerHTML = `
+      <div class="text-center py-4 text-muted small">
+        目前無任何招募項目，點擊下方「＋ 新增招募項目」或「恢復預設 7 項」以建立項目。
+      </div>
+    `;
+    return;
+  }
+
+  listEl.innerHTML = editingJobsList.map((job, idx) => `
+    <div class="p-3 rounded job-edit-card" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); transition: border-color 0.2s;" data-idx="${idx}">
+      <div class="row g-2 align-items-center">
+        <div class="col-3 col-sm-2 col-md-1 text-center">
+          <label class="form-label text-muted small d-block mb-1">圖示</label>
+          <input type="text" class="form-control text-center px-1 job-icon-input" value="${escapeHtml(job.icon || '📌')}" maxlength="4" style="background: rgba(255,255,255,0.08); color: white; border: 1px solid rgba(255,255,255,0.2); font-size: 18px;" onchange="syncCurrentJobRow(${idx}, 'icon', this.value)">
+        </div>
+        <div class="col-9 col-sm-10 col-md-4">
+          <label class="form-label text-muted small mb-1">項目名稱 (標題)</label>
+          <input type="text" class="form-control job-label-input" value="${escapeHtml(job.label || '')}" placeholder="例：參拜護持" style="background: rgba(255,255,255,0.08); color: white; border: 1px solid rgba(255,255,255,0.2);" onchange="syncCurrentJobRow(${idx}, 'label', this.value)">
+        </div>
+        <div class="col-12 col-md-5">
+          <label class="form-label text-muted small mb-1">工作說明與注意事項</label>
+          <input type="text" class="form-control job-desc-input" value="${escapeHtml(job.desc || '')}" placeholder="例：參拜日前置準備、引導與現場奉事協助" style="background: rgba(255,255,255,0.08); color: white; border: 1px solid rgba(255,255,255,0.2);" onchange="syncCurrentJobRow(${idx}, 'desc', this.value)">
+        </div>
+        <div class="col-12 col-md-2 d-flex align-items-center justify-content-end gap-3 pt-2 pt-md-4">
+          <div class="form-check form-switch mb-0" title="是否開放信徒報名">
+            <input class="form-check-input job-active-switch" type="checkbox" id="switch-job-${idx}" ${job.active !== false ? 'checked' : ''} onchange="syncCurrentJobRow(${idx}, 'active', this.checked)">
+            <label class="form-check-label small text-muted" for="switch-job-${idx}">${job.active !== false ? '開啟' : '隱藏'}</label>
+          </div>
+          <button type="button" class="btn btn-sm btn-outline-danger p-1" onclick="deleteJobRow(${idx})" title="刪除此項目">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function syncCurrentJobRow(idx, field, value) {
+  if (editingJobsList[idx]) {
+    editingJobsList[idx][field] = value;
+    if (field === 'active') {
+      const labelEl = document.querySelector(`label[for="switch-job-${idx}"]`);
+      if (labelEl) labelEl.innerText = value ? '開啟' : '隱藏';
+    }
+  }
+}
+
+function syncAllRowsFromDOM() {
+  const cards = document.querySelectorAll('.job-edit-card');
+  cards.forEach(card => {
+    const idx = parseInt(card.getAttribute('data-idx'), 10);
+    if (editingJobsList[idx]) {
+      const icon = card.querySelector('.job-icon-input')?.value?.trim() || '📌';
+      const label = card.querySelector('.job-label-input')?.value?.trim() || '';
+      const desc = card.querySelector('.job-desc-input')?.value?.trim() || '';
+      const active = card.querySelector('.job-active-switch')?.checked ?? true;
+      editingJobsList[idx].icon = icon;
+      editingJobsList[idx].label = label;
+      editingJobsList[idx].desc = desc;
+      editingJobsList[idx].active = active;
+    }
+  });
+}
+
+function addNewJobRow() {
+  syncAllRowsFromDOM();
+  editingJobsList.push({
+    id: 'tag_custom_' + Date.now().toString(36),
+    label: '',
+    icon: '📌',
+    desc: '',
+    active: true
+  });
+  renderJobsEditList();
+  const statusEl = document.getElementById('manage-jobs-status');
+  if (statusEl) statusEl.innerText = `目前共 ${editingJobsList.length} 項`;
+
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('.job-label-input');
+    if (inputs.length > 0) {
+      inputs[inputs.length - 1].focus();
+    }
+  }, 100);
+}
+
+function deleteJobRow(idx) {
+  syncAllRowsFromDOM();
+  if (editingJobsList[idx]) {
+    const name = editingJobsList[idx].label || '此項目';
+    if (!confirm(`確定要刪除「${name}」嗎？`)) return;
+    editingJobsList.splice(idx, 1);
+    renderJobsEditList();
+    const statusEl = document.getElementById('manage-jobs-status');
+    if (statusEl) statusEl.innerText = `目前共 ${editingJobsList.length} 項`;
+  }
+}
+
+function resetToDefaultJobs() {
+  if (!confirm("確定要將項目重設為預設的 7 項活動招募嗎？\n（未儲存前不會影響線上設定）")) return;
+  editingJobsList = JSON.parse(JSON.stringify(DEFAULT_RECRUITMENT_JOBS));
+  renderJobsEditList();
+  const statusEl = document.getElementById('manage-jobs-status');
+  if (statusEl) statusEl.innerText = `目前共 ${editingJobsList.length} 項 (預設)`;
+}
+
+async function saveRecruitmentJobs() {
+  syncAllRowsFromDOM();
+
+  for (let i = 0; i < editingJobsList.length; i++) {
+    const item = editingJobsList[i];
+    if (!item.label || item.label.trim() === '') {
+      alert(`第 ${i + 1} 個項目的名稱不可為空！`);
+      return;
+    }
+    if (!item.id) {
+      item.id = 'tag_custom_' + Date.now().toString(36) + '_' + i;
+    }
+    item.label = item.label.trim();
+    item.desc = (item.desc || '').trim();
+    item.icon = (item.icon || '📌').trim();
+  }
+
+  const saveBtn = document.getElementById('btn-save-jobs');
+  const statusEl = document.getElementById('manage-jobs-status');
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.innerText = '儲存發布中...';
+  }
+  if (statusEl) statusEl.innerText = '正在寫入雲端資料庫...';
+
+  try {
+    const user = auth.currentUser;
+    await db.collection('info').doc('recruitment_jobs').set({
+      jobs: editingJobsList,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedBy: user?.displayName || user?.email || '小組長'
+    });
+
+    if (statusEl) statusEl.innerText = '✅ 儲存成功！';
+    alert("✅ 招募工作項目已成功發布！\n一般信徒頁面 (member/index.html) 已即時同步最新內容。");
+    if (manageJobsModalInstance) {
+      manageJobsModalInstance.hide();
+    }
+    loadGanttCraftData();
+  } catch (err) {
+    console.error("Error saving recruitment jobs:", err);
+    alert("❌ 儲存失敗：" + (err.message || '請檢查網路連線或權限'));
+    if (statusEl) statusEl.innerText = '儲存失敗';
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.innerText = '💾 儲存並發布';
+    }
+  }
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
