@@ -104,18 +104,51 @@
           </div>
           <div class="modal-body py-3">
             <form id="seminar-form" onsubmit="submitSeminar(event)">
-              <div class="row g-2 mb-3">
-                <div class="col-6">
-                  <label class="form-label" style="font-weight: 600;">選擇組長</label>
-                  <select id="sem_leader" class="form-select" onchange="filterMembersByLeader()" style="border-radius: 10px;">
-                    <option value="" disabled selected>載入中...</option>
-                  </select>
+              <!-- Target Member Selection Type Toggle -->
+              <div class="mb-3">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                  <label class="form-label mb-0" style="font-weight: 600;">座談會對象</label>
+                  <div class="btn-group btn-group-sm" role="group" aria-label="選擇成員模式">
+                    <input type="radio" class="btn-check" name="sem_member_type" id="sem_type_registered" value="registered" checked onchange="handleMemberTypeChange()">
+                    <label class="btn btn-outline-info py-1 px-2 interactive" for="sem_type_registered" style="font-size: 12px; border-radius: 8px 0 0 8px;">
+                      👥 名冊成員
+                    </label>
+
+                    <input type="radio" class="btn-check" name="sem_member_type" id="sem_type_custom" value="custom" onchange="handleMemberTypeChange()">
+                    <label class="btn btn-outline-info py-1 px-2 interactive" for="sem_type_custom" style="font-size: 12px; border-radius: 0 8px 8px 0;">
+                      ✍️ 自行輸入姓名
+                    </label>
+                  </div>
                 </div>
-                <div class="col-6">
-                  <label class="form-label" style="font-weight: 600;">選擇青年成員</label>
-                  <select id="sem_member" class="form-select" required style="border-radius: 10px;">
-                    <option value="" disabled selected>載入中...</option>
-                  </select>
+
+                <!-- 模式 1：名冊成員下拉選單 -->
+                <div id="section-registered-member" class="row g-2">
+                  <div class="col-6">
+                    <label class="form-label small text-muted mb-1" style="font-size: 11px;">1. 選擇組長</label>
+                    <select id="sem_leader" class="form-select" onchange="filterMembersByLeader()" style="border-radius: 10px;">
+                      <option value="" disabled selected>載入中...</option>
+                    </select>
+                  </div>
+                  <div class="col-6">
+                    <label class="form-label small text-muted mb-1" style="font-size: 11px;">2. 選擇青年成員</label>
+                    <select id="sem_member" class="form-select" style="border-radius: 10px;">
+                      <option value="" disabled selected>載入中...</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- 模式 2：自行輸入姓名 (非名冊成員 / 新朋友) -->
+                <div id="section-custom-member" style="display: none;">
+                  <label class="form-label small text-muted mb-1" style="font-size: 11px;">非名冊對象 / 新朋友姓名</label>
+                  <div class="input-group">
+                    <span class="input-group-text" style="background: rgba(0, 243, 255, 0.1); border-color: var(--glass-border); color: #00F3FF; border-radius: 10px 0 0 10px;">
+                      👤
+                    </span>
+                    <input type="text" id="sem_custom_name" class="form-control" placeholder="請輸入對象姓名（如：黎文心、新朋友...）" style="border-radius: 0 10px 10px 0;">
+                  </div>
+                  <div class="form-text text-muted" style="font-size: 11px; margin-top: 4px;">
+                    💡 對象若未列入現有青年名單，請直接在此輸入姓名，系統將直接以該姓名記錄座談會。
+                  </div>
                 </div>
               </div>
               

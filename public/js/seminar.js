@@ -109,6 +109,30 @@ function loadMembers() {
     .catch((err) => console.error("Error loading members:", err));
 }
 
+function handleMemberTypeChange() {
+  const customRadio = document.getElementById('sem_type_custom');
+  const isCustom = customRadio && customRadio.checked;
+  const regSec = document.getElementById('section-registered-member');
+  const customSec = document.getElementById('section-custom-member');
+  const customInput = document.getElementById('sem_custom_name');
+  const memberSelect = document.getElementById('sem_member');
+
+  if (isCustom) {
+    if (regSec) regSec.style.display = 'none';
+    if (customSec) customSec.style.display = 'block';
+    if (memberSelect) memberSelect.required = false;
+    if (customInput) {
+      customInput.required = true;
+      customInput.focus();
+    }
+  } else {
+    if (regSec) regSec.style.display = 'flex';
+    if (customSec) customSec.style.display = 'none';
+    if (memberSelect) memberSelect.required = true;
+    if (customInput) customInput.required = false;
+  }
+}
+
 function filterMembersByLeader() {
   const selectedLeader = document.getElementById('sem_leader').value;
   const memberSelect = document.getElementById('sem_member');
@@ -122,6 +146,23 @@ function filterMembersByLeader() {
     opt.innerText = m.name;
     memberSelect.appendChild(opt);
   });
+
+  // Provide an entry in the dropdown to quickly switch to custom input
+  const customOpt = document.createElement('option');
+  customOpt.value = '__CUSTOM__';
+  customOpt.innerText = '✍️ [找不到人？手動輸入新朋友姓名]';
+  customOpt.style.color = '#00F3FF';
+  memberSelect.appendChild(customOpt);
+
+  memberSelect.onchange = function() {
+    if (this.value === '__CUSTOM__') {
+      const customRadio = document.getElementById('sem_type_custom');
+      if (customRadio) {
+        customRadio.checked = true;
+        handleMemberTypeChange();
+      }
+    }
+  };
 }
 
 function loadSeminars() {
@@ -240,6 +281,13 @@ function prepareAddSeminar() {
   document.getElementById('seminar-submit-btn').innerText = '確認登錄';
   document.getElementById('seminar-form').reset();
   
+  // Default to registered member selection mode
+  const typeRegRadio = document.getElementById('sem_type_registered');
+  if (typeRegRadio) {
+    typeRegRadio.checked = true;
+    handleMemberTypeChange();
+  }
+
   // Show AI section, hide structured fields
   document.getElementById('ai-input-section').style.display = 'block';
   document.getElementById('structured-fields').style.display = 'none';
@@ -252,9 +300,30 @@ function prepareAddSeminar() {
 function submitSeminar(event) {
   event.preventDefault();
   
-  const memberSelect = document.getElementById('sem_member');
-  const memberId = memberSelect.value;
-  const memberName = memberSelect.options[memberSelect.selectedIndex].text;
+  const isCustom = document.getElementById('sem_type_custom') && document.getElementById('sem_type_custom').checked;
+  let memberId = '';
+  let memberName = '';
+
+  if (isCustom) {
+    const customInput = document.getElementById('sem_custom_name');
+    memberName = (customInput ? customInput.value : '').trim();
+    if (!memberName) {
+      alert("請輸入座談會對象姓名！");
+      if (customInput) customInput.focus();
+      return;
+    }
+    memberId = '';
+  } else {
+    const memberSelect = document.getElementById('sem_member');
+    if (!memberSelect.value || memberSelect.value === '__CUSTOM__') {
+      alert("請選擇青年成員，或切換至「自行輸入姓名」！");
+      memberSelect.focus();
+      return;
+    }
+    memberId = memberSelect.value;
+    memberName = memberSelect.options[memberSelect.selectedIndex].text;
+  }
+
   const isEditing = currentEditId !== null;
 
   let date = '', time = '', location = '', feelings = '', goals = '', attendees = '', rawText = '';
@@ -391,13 +460,26 @@ function editSeminar(id) {
   document.getElementById('sem_goals').value = sem.goals || '';
   document.getElementById('sem_attendees').value = sem.attendees || '';
 
-  // Pre-select member — first pick the right leader then the member
-  const member = allMembers.find(m => m.id === sem.memberId);
+  // Determine if member is in allMembers or custom
+  const member = allMembers.find(m => m.id === sem.memberId || (sem.memberName && m.name === sem.memberName));
   if (member) {
+    const typeRegRadio = document.getElementById('sem_type_registered');
+    if (typeRegRadio) typeRegRadio.checked = true;
+    handleMemberTypeChange();
     const leaderSelect = document.getElementById('sem_leader');
     leaderSelect.value = member.leader;
     filterMembersByLeader();
-    document.getElementById('sem_member').value = sem.memberId;
+    document.getElementById('sem_member').value = member.id;
+  } else {
+    const typeCustomRadio = document.getElementById('sem_type_custom');
+    if (typeCustomRadio) typeCustomRadio.checked = true;
+    handleMemberTypeChange();
+    const customInput = document.getElementById('sem_custom_name');
+    const rawName = sem.memberName || '';
+    if (customInput) {
+      customInput.value = (rawName !== '未提供' && rawName !== '未指定') ? rawName : '';
+      customInput.focus();
+    }
   }
 
   // Open modal
@@ -460,6 +542,10 @@ function autoSelectMember(rawText) {
   }
   
   if (matchedMember) {
+    const typeRegRadio = document.getElementById('sem_type_registered');
+    if (typeRegRadio) typeRegRadio.checked = true;
+    handleMemberTypeChange();
+
     const leaderSelect = document.getElementById('sem_leader');
     const memberSelect = document.getElementById('sem_member');
     
@@ -471,5 +557,16 @@ function autoSelectMember(rawText) {
     
     // Set member
     memberSelect.value = matchedMember.id;
+  } else {
+    // If no registered member matches, attempt to extract explicit target keywords
+    const m = rawText.match(/(?:對象|成員|主角|座談對象|青年)：?\s*([^\n。,，]{2,10})/);
+    if (m && m[1]) {
+      const extracted = m[1].trim();
+      const typeCustomRadio = document.getElementById('sem_type_custom');
+      if (typeCustomRadio) typeCustomRadio.checked = true;
+      handleMemberTypeChange();
+      const customInput = document.getElementById('sem_custom_name');
+      if (customInput) customInput.value = extracted;
+    }
   }
 }

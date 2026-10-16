@@ -346,7 +346,8 @@ async function loadSeminarsData() {
         container.innerHTML = '<div class="col-12 text-center py-3 text-muted small">尚無座談會登記資料。</div>';
       } else {
         container.innerHTML = recent.map(s => {
-          const attendees = Array.isArray(s.attendees) ? s.attendees : [];
+          const attendees = Array.isArray(s.attendees) ? s.attendees : (typeof s.attendees === 'string' && s.attendees.trim() !== '' && s.attendees !== '無' && s.attendees !== '未提供' ? s.attendees.split(/[,，、\s]+/).filter(Boolean) : []);
+          const memberName = s.memberName || s.member || '未提供';
           return `
             <div class="col-12 col-md-6 col-lg-3">
               <div class="p-3 rounded h-100" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);">
@@ -354,7 +355,7 @@ async function loadSeminarsData() {
                   <strong class="text-success">${s.date || '未指定日期'}</strong>
                   <span class="badge bg-secondary py-0 px-2" style="font-size: 10px;">${attendees.length} 人參加</span>
                 </div>
-                <div class="small text-white fw-bold mb-1">成員：${s.member || '未提供'}</div>
+                <div class="small text-white fw-bold mb-1">成員：${memberName}</div>
                 <div class="small text-muted" style="font-size: 11px;">
                   📍 ${s.location || '未提供地點'}
                 </div>
