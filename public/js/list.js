@@ -565,49 +565,65 @@ function submitClaimIdentity() {
     return;
   }
 
-  let matchedDoc = null;
+  // Normalize date string (e.g. 1990/1/1 or 1990-1-1 to 1990-01-01)
+  const normalizeDateStr = (dStr) => {
+    if (!dStr) return '';
+    const m = String(dStr).trim().match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+    if (m) {
+      return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+    }
+    return String(dStr).trim();
+  };
+
+  const inBorn = normalizeDateStr(inputBirth);
+  const inJoin = normalizeDateStr(inputJoin);
+
+  // Find all matching members by name
+  const matchedDocs = [];
   data.forEach(doc => {
     if (doc.data().name === selectedName) {
-      matchedDoc = doc;
+      matchedDocs.push(doc);
     }
   });
 
-  if (!matchedDoc) {
+  if (matchedDocs.length === 0) {
     alert("找不到該姓名！");
     return;
   }
 
-  const d = matchedDoc.data();
-  
-  // Normalize date string (e.g. 1990/1/1 or 1990-1-1 to 1990-01-01)
-  const normalizeDateStr = (dStr) => {
-    if (!dStr) return '';
-    const m = dStr.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
-    if (m) {
-      return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+  let matchedDoc = null;
+  let d = null;
+  for (const doc of matchedDocs) {
+    const docData = doc.data();
+    // In Firestore, join date is stored as document ID (e.g. "2022-08-07" or "2022-08-07A")
+    const rawDbJoin = docData.join || (doc.id ? doc.id.replace(/[A-Za-z]+$/, '').trim() : '');
+    const dbBorn = normalizeDateStr(docData.born);
+    const dbJoin = normalizeDateStr(rawDbJoin);
+
+    if (dbBorn === inBorn && dbJoin === inJoin) {
+      matchedDoc = doc;
+      d = docData;
+      break;
     }
-    return dStr.trim();
-  };
+  }
 
-  const dbBorn = normalizeDateStr(d.born);
-  const dbJoin = normalizeDateStr(d.join);
-  const inBorn = normalizeDateStr(inputBirth);
-  const inJoin = normalizeDateStr(inputJoin);
-
-  if (dbBorn !== inBorn || dbJoin !== inJoin) {
+  if (!matchedDoc || !d) {
     alert("出生日期或入信日期錯誤，認領失敗！\n(資料庫紀錄與您輸入的不相符)");
     return;
   }
 
   const user = auth.currentUser;
-  if (!user || !user.email) return;
+  if (!user || !user.email) {
+    alert("請先以 Google 帳號登入後再進行身份綁定！");
+    return;
+  }
 
   const userRef = db.collection('allowed_users').doc(user.email);
   userRef.set({
     linkedMemberId: matchedDoc.id,
     linkedName: d.name
   }, { merge: true }).then(() => {
-    alert("✅ 身份綁定成功！");
+    alert(`✅ 身份綁定成功！您已成功認領「${d.name}」的身份。`);
     if (claimModalInstance) claimModalInstance.hide();
     
     const btn = document.getElementById('btnClaimIdentity');
@@ -619,7 +635,7 @@ function submitClaimIdentity() {
     }
   }).catch(err => {
     console.error(err);
-    alert("綁定失敗，權限不足。請確認已更新 Firestore 安全規則！");
+    alert("綁定失敗: " + (err.message || "權限不足，請聯繫管理員。"));
   });
 }
 
