@@ -525,18 +525,21 @@ function renderJobsEditList() {
 
   listEl.innerHTML = editingJobsList.map((job, idx) => `
     <div class="p-3 rounded job-edit-card" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); transition: border-color 0.2s;" data-idx="${idx}">
-      <div class="row g-2 align-items-center">
-        <div class="col-3 col-sm-2 col-md-1 text-center">
-          <label class="form-label text-muted small d-block mb-1">圖示</label>
+      <div class="row g-2 align-items-start">
+        <div class="col-2 col-sm-2 col-md-1 text-center">
+          <label class="form-label text-muted small d-block mb-1" style="font-size: 11px;">圖示</label>
           <input type="text" class="form-control text-center px-1 job-icon-input" value="${escapeHtml(job.icon || '📌')}" maxlength="4" style="background: rgba(255,255,255,0.08); color: white; border: 1px solid rgba(255,255,255,0.2); font-size: 18px;" onchange="syncCurrentJobRow(${idx}, 'icon', this.value)">
         </div>
-        <div class="col-9 col-sm-10 col-md-4">
-          <label class="form-label text-muted small mb-1">項目名稱 (標題)</label>
-          <input type="text" class="form-control job-label-input" value="${escapeHtml(job.label || '')}" placeholder="例：參拜護持" style="background: rgba(255,255,255,0.08); color: white; border: 1px solid rgba(255,255,255,0.2);" onchange="syncCurrentJobRow(${idx}, 'label', this.value)">
+        <div class="col-10 col-sm-10 col-md-3">
+          <label class="form-label text-muted small mb-1" style="font-size: 11px;">項目名稱 (標題)</label>
+          <input type="text" class="form-control job-label-input" value="${escapeHtml(job.label || '')}" placeholder="例：參拜護持" style="background: rgba(255,255,255,0.08); color: white; border: 1px solid rgba(255,255,255,0.2); font-size: 14px;" onchange="syncCurrentJobRow(${idx}, 'label', this.value)">
         </div>
-        <div class="col-12 col-md-5">
-          <label class="form-label text-muted small mb-1">工作說明與注意事項</label>
-          <input type="text" class="form-control job-desc-input" value="${escapeHtml(job.desc || '')}" placeholder="例：參拜日前置準備、引導與現場奉事協助" style="background: rgba(255,255,255,0.08); color: white; border: 1px solid rgba(255,255,255,0.2);" onchange="syncCurrentJobRow(${idx}, 'desc', this.value)">
+        <div class="col-12 col-md-6">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <label class="form-label text-muted small mb-0" style="font-size: 11px;">工作說明與注意事項</label>
+            <span class="text-muted" style="font-size: 10px;">可上下拖曳調整高度</span>
+          </div>
+          <textarea class="form-control job-desc-input" rows="2" placeholder="例：參拜日前置準備、引導與現場奉事協助" style="background: rgba(255,255,255,0.08); color: white; border: 1px solid rgba(255,255,255,0.2); font-size: 13px; line-height: 1.5; resize: vertical; min-height: 54px; width: 100%;" oninput="syncCurrentJobRow(${idx}, 'desc', this.value)" onchange="syncCurrentJobRow(${idx}, 'desc', this.value)">${escapeHtml(job.desc || '')}</textarea>
         </div>
         <div class="col-12 col-md-2 d-flex align-items-center justify-content-end gap-3 pt-2 pt-md-4">
           <div class="form-check form-switch mb-0" title="是否開放信徒報名">
