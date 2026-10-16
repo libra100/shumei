@@ -20,9 +20,15 @@ db.enablePersistence().catch((err) => {
 auth.onAuthStateChanged((user) => {
   if (user) {
     console.log("已登入 UID:", user.uid);
+    const isLeader = sessionStorage.getItem('SHUMEI_LEADER_AUTH') === 'true' || localStorage.getItem('SHUMEI_USER_ROLE') === 'leader';
     if (user.isAnonymous) {
-      isAdmin = false;
-      setLinks('list.html');
+      if (isLeader) {
+        isAdmin = true;
+        setLinks('admin.html');
+      } else {
+        isAdmin = false;
+        setLinks('list.html');
+      }
       initData();
     } else {
       db.collection('info').doc('admins').get().then((doc) => {
@@ -53,6 +59,8 @@ auth.onAuthStateChanged((user) => {
 });
 
 function signOut() {
+  sessionStorage.removeItem('SHUMEI_LEADER_AUTH');
+  localStorage.removeItem('SHUMEI_USER_ROLE');
   auth.signOut().then(() => {
     window.location.href = '/index.html';
   });

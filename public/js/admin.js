@@ -43,6 +43,8 @@ auth.onAuthStateChanged((user) => {
 });
 
 function signOut() {
+  sessionStorage.removeItem('SHUMEI_LEADER_AUTH');
+  localStorage.removeItem('SHUMEI_USER_ROLE');
   auth.signOut().then(() => {
     window.location.href = '/index.html';
   });

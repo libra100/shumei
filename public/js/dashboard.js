@@ -37,14 +37,19 @@ const GANTTCRAFT_URL = "https://firestore.googleapis.com/v1/projects/gantt-craft
 // Authentication Listener
 auth.onAuthStateChanged((user) => {
   if (user) {
-    if (user.isAnonymous) {
-      // 匿名登入者為一般成員，導向成員專區
+    const isLeader = sessionStorage.getItem('SHUMEI_LEADER_AUTH') === 'true' || localStorage.getItem('SHUMEI_USER_ROLE') === 'leader';
+    if (user.isAnonymous && !isLeader) {
+      // 匿名且非幹部身分，導向一般信徒專區
       window.location.href = '/member/index.html';
       return;
     }
     const nameEl = document.getElementById('user-display-name');
-    if (nameEl && user.displayName) {
-      nameEl.innerText = `幹部：${user.displayName}`;
+    if (nameEl) {
+      if (user.displayName) {
+        nameEl.innerText = `幹部：${user.displayName}`;
+      } else {
+        nameEl.innerText = `幹部：小組長（密碼登入）`;
+      }
     }
     initDashboard();
   } else {
@@ -53,6 +58,8 @@ auth.onAuthStateChanged((user) => {
 });
 
 function signOut() {
+  sessionStorage.removeItem('SHUMEI_LEADER_AUTH');
+  localStorage.removeItem('SHUMEI_USER_ROLE');
   auth.signOut().then(() => {
     window.location.href = '/index.html';
   });
