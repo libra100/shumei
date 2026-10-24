@@ -37,6 +37,29 @@
         z-index: 999;
         cursor: pointer;
       }
+      /* Mobile Modal Usability Optimization */
+      @media (max-width: 768px) {
+        #addMemberModal .modal-dialog, #setModal .modal-dialog {
+          margin: 10px;
+          max-height: calc(100vh - 20px);
+        }
+        #addMemberModal .modal-content, #setModal .modal-content {
+          padding: 16px 14px !important;
+          max-height: calc(100vh - 30px);
+          display: flex;
+          flex-direction: column;
+        }
+        #addMemberModal .modal-body, #setModal .modal-body {
+          max-height: calc(100vh - 170px);
+          overflow-y: auto;
+          -webkit-overflow-scrolling: touch;
+          padding: 8px 4px !important;
+        }
+        #addMemberModal .modal-footer, #setModal .modal-footer {
+          padding-top: 10px !important;
+          padding-bottom: 4px !important;
+        }
+      }
     </style>
   </head>
   <body>
@@ -133,48 +156,51 @@
 
     <!-- Add Member Modal -->
     <div class="modal fade" id="addMemberModal" tabindex="-1" aria-labelledby="addMemberModalLabel" aria-hidden="true">
-      <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content glass-card noise-overlay" style="border: none; padding: 25px;">
-          <div class="modal-header border-0 pb-0">
-            <h5 class="modal-title" id="addMemberModalLabel" style="font-weight: 600; color: var(--text-main);">新增成員資料</h5>
+      <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+        <div class="modal-content glass-card noise-overlay" style="border: none; padding: 20px;">
+          <div class="modal-header border-0 pb-1">
+            <div>
+              <h5 class="modal-title" id="addMemberModalLabel" style="font-weight: 600; color: var(--text-main);">新增成員資料</h5>
+              <div class="text-muted" style="font-size: 13px;">請填寫新成員的基本資料（<span class="text-danger">*</span> 為必填項目）</div>
+            </div>
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
-          <div class="modal-body">
+          <div class="modal-body py-2">
             <div class="row g-3">
               <div class="col-12 col-md-6">
-                <label class="form-label">入信日期</label>
-                <input type="date" id="join" class="form-control">
+                <label class="form-label" for="join">入信日期 <span class="text-danger">*</span></label>
+                <input type="date" id="join" class="form-control" required>
               </div>
               <div class="col-12 col-md-6">
-                <label class="form-label">姓名</label>
-                <input type="text" id="name" class="form-control" placeholder="請輸入姓名">
+                <label class="form-label" for="name">姓名 <span class="text-danger">*</span></label>
+                <input type="text" id="name" class="form-control" placeholder="請輸入姓名" required>
               </div>
               <div class="col-12 col-md-6">
-                <label class="form-label">介紹人 1</label>
+                <label class="form-label" for="guide1">介紹人 1</label>
                 <input type="text" id="guide1" class="form-control" placeholder="請輸入介紹人 1">
               </div>
               <div class="col-12 col-md-6">
-                <label class="form-label">介紹人 2</label>
+                <label class="form-label" for="guide2">介紹人 2</label>
                 <input type="text" id="guide2" class="form-control" placeholder="請輸入介紹人 2">
               </div>
               <div class="col-12 col-md-6">
-                <label class="form-label">世話人</label>
+                <label class="form-label" for="sewajin">世話人</label>
                 <input type="text" id="sewajin" class="form-control" placeholder="請輸入世話人">
               </div>
               <div class="col-12 col-md-6">
-                <label class="form-label">出生日期</label>
+                <label class="form-label" for="born">出生日期</label>
                 <input type="date" id="born" class="form-control">
               </div>
               <div class="col-12 col-md-6">
-                <label class="form-label">市內電話</label>
+                <label class="form-label" for="tel">市內電話</label>
                 <input type="tel" id="tel" class="form-control" placeholder="請輸入市內電話">
               </div>
               <div class="col-12 col-md-6">
-                <label class="form-label">行動電話</label>
-                <input type="phone" id="phone" class="form-control" placeholder="請輸入行動電話">
+                <label class="form-label" for="phone">行動電話</label>
+                <input type="tel" id="phone" class="form-control" placeholder="請輸入行動電話">
               </div>
               <div class="col-12 col-md-6">
-                <label class="form-label">分組組長</label>
+                <label class="form-label" for="leader_add">分組組長</label>
                 <select id="leader_add" class="form-select" style="border-radius: 10px;"></select>
               </div>
               <div class="col-12 col-md-6">
@@ -191,18 +217,18 @@
                 </div>
               </div>
               <div class="col-12">
-                <label class="form-label">通訊地址</label>
+                <label class="form-label" for="adress">通訊地址</label>
                 <input type="text" id="adress" class="form-control" placeholder="請輸入通訊地址">
               </div>
               <div class="col-12">
-                <label class="form-label">備註</label>
+                <label class="form-label" for="note">備註</label>
                 <textarea id="note" class="form-control" placeholder="輸入備註，如：世話人、助教師..." rows="2"></textarea>
               </div>
             </div>
           </div>
           <div class="modal-footer border-0 pt-3">
             <button type="button" class="btn btn-secondary-custom interactive" data-bs-dismiss="modal">取消</button>
-            <button type="button" class="btn btn-primary-custom interactive" data-bs-dismiss="modal" id="btn_upload">上傳儲存</button>
+            <button type="button" class="btn btn-primary-custom interactive" id="btn_upload" onclick="get_date()">上傳儲存</button>
           </div>
         </div>
       </div>
@@ -210,8 +236,8 @@
 
     <!-- Edit Member Modal (setModal) -->
     <div class="modal fade" id="setModal" tabindex="-1" aria-labelledby="ModalTitle" aria-hidden="true">
-      <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content glass-card noise-overlay" style="border: none; padding: 25px;">
+      <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content glass-card noise-overlay" style="border: none; padding: 20px;">
           <div class="modal-header border-0 pb-0 justify-content-between align-items-center">
             <div>
               <h5 class="modal-title" id="ModalTitle" style="font-weight: 600; color: var(--text-main);">修改資料</h5>
@@ -266,12 +292,12 @@
             </div>
           </div>
           <div class="modal-footer border-0 pt-0 d-flex justify-content-between">
-            <button type="button" class="btn btn-danger interactive" data-bs-dismiss="modal" id="btn_del" style="padding: 10px 20px; border-radius: 10px;">
+            <button type="button" class="btn btn-danger interactive" id="btn_del" style="padding: 10px 20px; border-radius: 10px;">
               刪除資料
             </button>
             <div class="d-flex gap-2">
               <button type="button" class="btn btn-secondary-custom interactive" data-bs-dismiss="modal">取消</button>
-              <button type="button" class="btn btn-primary-custom interactive" data-bs-dismiss="modal" id="btn_up">
+              <button type="button" class="btn btn-primary-custom interactive" id="btn_up">
                 更新儲存
               </button>
             </div>

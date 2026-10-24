@@ -545,12 +545,37 @@ function get(o) {
     });
 }
 
+function resetUploadBtn() {
+  const btnUpload = document.getElementById('btn_upload');
+  if (btnUpload) {
+    btnUpload.disabled = false;
+    btnUpload.innerText = '上傳儲存';
+  }
+}
+
 function get_date() {
-  var date = document.getElementById('join').value;
+  const joinInput = document.getElementById('join');
+  const nameInput = document.getElementById('name');
+  const date = joinInput ? joinInput.value.trim() : '';
+  const name = nameInput ? nameInput.value.trim() : '';
+
   if (!date) {
-    alert("請選擇入信日期");
+    alert("請選擇「入信日期」（必填欄位）");
+    if (joinInput) joinInput.focus();
     return;
   }
+  if (!name) {
+    alert("請輸入「姓名」（必填欄位）");
+    if (nameInput) nameInput.focus();
+    return;
+  }
+
+  const btnUpload = document.getElementById('btn_upload');
+  if (btnUpload) {
+    btnUpload.disabled = true;
+    btnUpload.innerText = '儲存中...';
+  }
+
   check_num(date);
 }
 
@@ -559,30 +584,35 @@ function check_num(date) {
     .doc(date)
     .get()
     .then((doc) => {
-      if (doc.data()) check_num(date + 'A');
-      else add(date);
+      if (doc.exists) {
+        check_num(date + 'A');
+      } else {
+        add(date);
+      }
     })
     .catch((e) => {
-      console.log(e);
+      console.error("檢查成員編號重複失敗:", e);
+      alert("檢查成員編號時發生錯誤：" + (e.message || e));
+      resetUploadBtn();
     });
 }
 
 function add(join) {
-  var name = document.getElementById('name').value;
-  var guide1 = document.getElementById('guide1').value;
-  var guide2 = document.getElementById('guide2').value;
-  var sewajin = document.getElementById('sewajin').value;
-  var adress = document.getElementById('adress').value;
-  var tel = document.getElementById('tel').value;
-  var phone = document.getElementById('phone').value;
-  var born = document.getElementById('born').value;
-  var leaderVal = document.getElementById('leader_add').value;
-  var note = document.getElementById('note').value;
-  var connect = document.getElementsByName('connect');
-  var cont = true;
-  var post = '';
+  const name = (document.getElementById('name').value || '').trim();
+  let guide1 = (document.getElementById('guide1').value || '').trim();
+  let guide2 = (document.getElementById('guide2').value || '').trim();
+  const sewajin = (document.getElementById('sewajin').value || '').trim();
+  const adress = (document.getElementById('adress').value || '').trim();
+  const tel = (document.getElementById('tel').value || '').trim();
+  const phone = (document.getElementById('phone').value || '').trim();
+  const born = (document.getElementById('born').value || '').trim();
+  let leaderVal = document.getElementById('leader_add').value;
+  let note = (document.getElementById('note').value || '').trim();
+  const connect = document.getElementsByName('connect');
+  let cont = true;
+  let post = '';
   
-  if (connect[1].checked) cont = false;
+  if (connect[1] && connect[1].checked) cont = false;
 
   if (guide1.length < 1) guide1 = '';
   if (guide2.length < 1) guide2 = '';
@@ -612,13 +642,28 @@ function add(join) {
       post: post,
       connect: cont,
       part: '青年部',
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
     })
     .then(() => {
-      alert('上傳成功');
-      // Clear inputs
+      alert('成員「' + name + '」資料新增成功！');
       clear();
-      // Reload list
-      getDate('青年部');
+      resetUploadBtn();
+      
+      // 成功後關閉 Modal
+      const addModalEl = document.getElementById('addMemberModal');
+      if (addModalEl && typeof bootstrap !== 'undefined') {
+        const modalInstance = bootstrap.Modal.getInstance(addModalEl) || new bootstrap.Modal(addModalEl);
+        modalInstance.hide();
+      }
+
+      // 重新整理名單
+      const currentLeader = document.getElementById('leader') ? document.getElementById('leader').value : '青年部';
+      getDate(currentLeader || '青年部');
+    })
+    .catch((err) => {
+      console.error("儲存成員資料失敗:", err);
+      alert("儲存成員失敗！\n錯誤原因：" + (err.message || err));
+      resetUploadBtn();
     });
 }
 
@@ -639,22 +684,32 @@ function set(o) {
         'del("' + doc.data().name + '", "' + o + '")'
       );
       get(o);
+    })
+    .catch((err) => {
+      console.error("讀取成員資料失敗:", err);
+      alert("讀取成員資料失敗：" + (err.message || err));
     });
 }
 
 function set_up(o) {
-  var sewajin = document.getElementById('set_sewa').value;
-  var adress = document.getElementById('set_adress').value;
-  var tel = document.getElementById('set_tel').value;
-  var phone = document.getElementById('set_phone').value;
-  var leaderVal = document.getElementById('set_lead').value;
-  var note = document.getElementById('set_note').value;
-  var part = document.getElementById('list_part').value;
-  var conect = document.getElementsByName('conect');
-  var cont = true;
-  var post = '';
+  const btnUp = document.getElementById('btn_up');
+  if (btnUp) {
+    btnUp.disabled = true;
+    btnUp.innerText = '更新中...';
+  }
+
+  const sewajin = (document.getElementById('set_sewa').value || '').trim();
+  const adress = (document.getElementById('set_adress').value || '').trim();
+  const tel = (document.getElementById('set_tel').value || '').trim();
+  const phone = (document.getElementById('set_phone').value || '').trim();
+  const leaderVal = document.getElementById('set_lead').value;
+  let note = (document.getElementById('set_note').value || '').trim();
+  const part = document.getElementById('list_part').value;
+  const conect = document.getElementsByName('conect');
+  let cont = true;
+  let post = '';
   
-  if (conect[1].checked) cont = false;
+  if (conect[1] && conect[1].checked) cont = false;
 
   if (note.includes('助教師')) {
     post += '助教師';
@@ -678,22 +733,60 @@ function set_up(o) {
       connect: cont,
     })
     .then(() => {
-      alert('上傳成功');
-      getDate('青年部');
+      alert('資料更新成功！');
+      if (btnUp) {
+        btnUp.disabled = false;
+        btnUp.innerText = '更新儲存';
+      }
+      const setModalEl = document.getElementById('setModal');
+      if (setModalEl && typeof bootstrap !== 'undefined') {
+        const modalInstance = bootstrap.Modal.getInstance(setModalEl) || new bootstrap.Modal(setModalEl);
+        modalInstance.hide();
+      }
+      const currentLeader = document.getElementById('leader') ? document.getElementById('leader').value : '青年部';
+      getDate(currentLeader || '青年部');
+    })
+    .catch((err) => {
+      console.error("更新成員資料失敗:", err);
+      alert("更新資料失敗！\n錯誤原因：" + (err.message || err));
+      if (btnUp) {
+        btnUp.disabled = false;
+        btnUp.innerText = '更新儲存';
+      }
     });
 }
 
 function del(n, o) {
-  if (confirm('確定要刪除' + n + '的資料嗎?')) {
+  if (confirm('確定要刪除「' + n + '」的資料嗎？此動作無法復原！')) {
+    const btnDel = document.getElementById('btn_del');
+    if (btnDel) {
+      btnDel.disabled = true;
+      btnDel.innerText = '刪除中...';
+    }
     db.collection('member')
       .doc(o)
       .delete()
       .then(() => {
-        alert('已刪除' + n);
-        window.location.reload();
+        alert('已成功刪除「' + n + '」的資料');
+        if (btnDel) {
+          btnDel.disabled = false;
+          btnDel.innerText = '刪除資料';
+        }
+        const setModalEl = document.getElementById('setModal');
+        if (setModalEl && typeof bootstrap !== 'undefined') {
+          const modalInstance = bootstrap.Modal.getInstance(setModalEl) || new bootstrap.Modal(setModalEl);
+          modalInstance.hide();
+        }
+        const currentLeader = document.getElementById('leader') ? document.getElementById('leader').value : '青年部';
+        getDate(currentLeader || '青年部');
       })
       .catch((e) => {
-        console.log(e);
+        console.error("刪除失敗:", e);
+        alert("刪除失敗！\n錯誤原因：" + (e.message || e));
+        if (btnDel) {
+          btnDel.disabled = false;
+          btnDel.innerText = '刪除資料';
+        }
       });
   }
 }
