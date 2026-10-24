@@ -72,21 +72,26 @@
 
     <div class="container py-2 py-md-3 px-2 px-md-3" style="max-width: 1000px;">
       <!-- Title area (Compact) -->
-      <div class="text-center mb-2 mb-md-3 stagger-item">
-        <h2 style="font-weight: 600; color: var(--text-main); font-size: 1.15rem; margin-bottom: 2px;">青年分組與活動登錄</h2>
-        <p class="text-muted" style="font-size: 12px; margin-bottom: 0;">點擊成員以登錄或查看當月活動參與狀態</p>
+      <div class="d-flex justify-content-between align-items-center mb-2 mb-md-3 stagger-item">
+        <div>
+          <h2 style="font-weight: 600; color: var(--text-main); font-size: 1.15rem; margin-bottom: 2px;">青年分組與活動登錄</h2>
+          <p class="text-muted" style="font-size: 12px; margin-bottom: 0;">點擊成員以登錄或查看當月活動參與狀態</p>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-light interactive" onclick="openManageActivityModal()" style="border-radius: 10px; font-size: 13px; border: 1px solid var(--glass-border); color: var(--text-main);">
+          ⚙️ 管理活動項目
+        </button>
       </div>
 
       <!-- Accordion Body -->
       <div class="accordion group-accordion stagger-item" style="animation-delay: 100ms;" id="body">
-        <!-- Dynmically loaded group accordions -->
+        <!-- Dynamically loaded group accordions -->
       </div>
     </div>
 
     <!-- Activity Logging Modal (logModal) -->
     <div class="modal fade" id="logModal" tabindex="-1" aria-labelledby="logModalLabel" aria-hidden="true">
-      <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content glass-card noise-overlay" style="border: none; padding: 25px;">
+      <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content glass-card noise-overlay" style="border: none; padding: 20px;">
           <div class="modal-header border-0 pb-0">
             <div>
               <h5 class="modal-title" id="logModalLabel" style="font-weight: 600; color: var(--text-main); font-size: 20px;">成員姓名</h5>
@@ -97,97 +102,39 @@
           <div class="modal-body py-3">
             <h4 id="month" class="text-center d-none" style="font-weight: 600; color: var(--primary-dark);">當月月分</h4>
             
-            <div class="list-group border-0 gap-2">
-              <div class="list-group-item justify-content-between d-flex align-items-center py-3 px-3 border-0">
-                <span style="font-weight: 500; font-size: 15px;">青年秀勉</span>
-                <div class="d-flex gap-3">
-                  <div class="form-check form-check-inline m-0">
-                    <input class="form-check-input" type="radio" id="act_a_yes" name="act_a" value="true" style="width: auto;">
-                    <label class="form-check-label" for="act_a_yes">有</label>
-                  </div>
-                  <div class="form-check form-check-inline m-0">
-                    <input class="form-check-input" type="radio" id="act_a_no" name="act_a" value="false" checked style="width: auto;">
-                    <label class="form-check-label" for="act_a_no">無</label>
-                  </div>
-                </div>
-              </div>
-
-              <div class="list-group-item justify-content-between d-flex align-items-center py-3 px-3 border-0">
-                <span style="font-weight: 500; font-size: 15px;">百淨靈</span>
-                <div class="d-flex gap-3">
-                  <div class="form-check form-check-inline m-0">
-                    <input class="form-check-input" type="radio" id="act_b_yes" name="act_b" value="true" style="width: auto;">
-                    <label class="form-check-label" for="act_b_yes">有</label>
-                  </div>
-                  <div class="form-check form-check-inline m-0">
-                    <input class="form-check-input" type="radio" id="act_b_no" name="act_b" value="false" checked style="width: auto;">
-                    <label class="form-check-label" for="act_b_no">無</label>
-                  </div>
-                </div>
-              </div>
-
-              <div class="list-group-item justify-content-between d-flex align-items-center py-3 px-3 border-0">
-                <span style="font-weight: 500; font-size: 15px;">淨靈週</span>
-                <div class="d-flex gap-3">
-                  <div class="form-check form-check-inline m-0">
-                    <input class="form-check-input" type="radio" id="act_c_yes" name="act_c" value="true" style="width: auto;">
-                    <label class="form-check-label" for="act_c_yes">有</label>
-                  </div>
-                  <div class="form-check form-check-inline m-0">
-                    <input class="form-check-input" type="radio" id="act_c_no" name="act_c" value="false" checked style="width: auto;">
-                    <label class="form-check-label" for="act_c_no">無</label>
-                  </div>
-                </div>
-              </div>
-
-              <div class="list-group-item justify-content-between d-flex align-items-center py-3 px-3 border-0">
-                <span style="font-weight: 500; font-size: 15px;">農場</span>
-                <div class="d-flex gap-3">
-                  <div class="form-check form-check-inline m-0">
-                    <input class="form-check-input" type="radio" id="act_d_yes" name="act_d" value="true" style="width: auto;">
-                    <label class="form-check-label" for="act_d_yes">有</label>
-                  </div>
-                  <div class="form-check form-check-inline m-0">
-                    <input class="form-check-input" type="radio" id="act_d_no" name="act_d" value="false" checked style="width: auto;">
-                    <label class="form-check-label" for="act_d_no">無</label>
-                  </div>
-                </div>
-              </div>
-
-              <div class="list-group-item justify-content-between d-flex align-items-center py-3 px-3 border-0">
-                <span style="font-weight: 500; font-size: 15px;">市集</span>
-                <div class="d-flex gap-3">
-                  <div class="form-check form-check-inline m-0">
-                    <input class="form-check-input" type="radio" id="act_e_yes" name="act_e" value="true" style="width: auto;">
-                    <label class="form-check-label" for="act_e_yes">有</label>
-                  </div>
-                  <div class="form-check form-check-inline m-0">
-                    <input class="form-check-input" type="radio" id="act_e_no" name="act_e" value="false" checked style="width: auto;">
-                    <label class="form-check-label" for="act_e_no">無</label>
-                  </div>
-                </div>
-              </div>
-
-              <div class="list-group-item justify-content-between d-flex align-items-center py-3 px-3 border-0">
-                <span style="font-weight: 500; font-size: 15px;">桃子活動</span>
-                <div class="d-flex gap-3">
-                  <div class="form-check form-check-inline m-0">
-                    <input class="form-check-input" type="radio" id="act_f_yes" name="act_f" value="true" style="width: auto;">
-                    <label class="form-check-label" for="act_f_yes">有</label>
-                  </div>
-                  <div class="form-check form-check-inline m-0">
-                    <input class="form-check-input" type="radio" id="act_f_no" name="act_f" value="false" checked style="width: auto;">
-                    <label class="form-check-label" for="act_f_no">無</label>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <!-- 動態渲染自 Firestore info/activity_items 的活動項目 -->
+            <div class="list-group border-0 gap-2" id="activityItemsContainer"></div>
           </div>
           <div class="modal-footer border-0 pt-0 justify-content-end">
             <button type="button" class="btn btn-secondary-custom interactive" data-bs-dismiss="modal">取消</button>
-            <button id="btn_up" type="button" class="btn btn-primary-custom interactive" data-bs-dismiss="modal">
+            <button id="btn_up" type="button" class="btn btn-primary-custom interactive">
               更新紀錄
             </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Manage Activity Items Modal -->
+    <div class="modal fade" id="manageActivityModal" tabindex="-1" aria-labelledby="manageActivityModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content glass-card noise-overlay" style="border: none; padding: 20px;">
+          <div class="modal-header border-0 pb-1">
+            <div>
+              <h5 class="modal-title" id="manageActivityModalLabel" style="font-weight: 600; color: var(--text-main);">⚙️ 管理活動登錄項目</h5>
+              <div class="text-muted" style="font-size: 12px;">直接以中文名稱儲存於資料庫 <code>info/activity_items</code>，可隨時增減</div>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body py-3">
+            <div class="input-group mb-3">
+              <input type="text" id="newActivityNameInput" class="form-control" placeholder="輸入新活動名稱（例如：讀書會）">
+              <button type="button" class="btn btn-primary-custom interactive" onclick="addNewActivityItem()">＋ 新增項目</button>
+            </div>
+            <div class="list-group border-0 gap-2" id="manageActivityListContainer"></div>
+          </div>
+          <div class="modal-footer border-0 pt-1">
+            <button type="button" class="btn btn-secondary-custom interactive" data-bs-dismiss="modal">關閉</button>
           </div>
         </div>
       </div>
