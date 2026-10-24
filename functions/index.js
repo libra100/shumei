@@ -35,7 +35,8 @@ exports.lineWebhook = onRequest(
       // Publish each event to Pub/Sub for background processing
       await Promise.all(
         events.map(async (event) => {
-          if (event.type !== "message" || event.message.type !== "text") {
+          // 支援文字訊息與圖片訊息 (圖片用於入信願書 OCR)
+          if (event.type !== "message" || (event.message.type !== "text" && event.message.type !== "image")) {
             return Promise.resolve(null);
           }
           
@@ -62,6 +63,7 @@ exports.processLineEvent = onMessagePublished(
     const event = pubsubEvent.data.message.json.event;
     if (!event) return;
     
+    const isImage = event.message.type === "image";
     const userMessage = event.message.text || "";
     const replyToken = event.replyToken;
     const userId = event.source ? event.source.userId : null;
@@ -74,19 +76,404 @@ exports.processLineEvent = onMessagePublished(
 
     // 判斷是否需要處理
     const isStats = userMessage.includes("統計");
-    
-    // 檢查是否有明確標記機器人 (忽略大小寫)
     const lowerMessage = userMessage.toLowerCase();
     const isTagged = lowerMessage.includes("@shumei helper");
 
-    // 個人對話 (1對1) 一律處理；群組或聊天室則需要標記機器人、要求統計、或包含登記關鍵字
-    const isForBot = isPrivateChat || isTagged || isStats || /登記|紀錄|座談|回報/.test(userMessage);
+    // 關鍵字判斷
+    const isJyoreiKeyword = /淨靈|施光|御光|jyorei/i.test(userMessage);
+    const isLineageKeyword = /介紹人|世話人|組長|下線|靈線|電話|住址|地址/.test(userMessage);
+    const isSeminarKeyword = /登記|紀錄|座談|回報/.test(userMessage);
+
+    // 個人對話 (1對1) 或圖片一律處理；群組或聊天室則需標記機器人或命中關鍵字
+    const isForBot = isPrivateChat || isTagged || isStats || isJyoreiKeyword || isLineageKeyword || isSeminarKeyword || isImage;
 
     if (!isForBot) {
       return; // 忽略群組中的一般閒聊，不回覆且不呼叫 AI
     }
 
-    // 處理統計指令
+    // 取得發話者在 LINE 的顯示名稱
+    let userName = "發言者";
+    try {
+      if (userId) {
+        const profile = await client.getProfile(userId);
+        userName = profile.displayName || "發言者";
+      }
+    } catch (e) {
+      logger.error("Failed to get user profile", e);
+    }
+
+    const genAI = new GoogleGenerativeAI(geminiApiKey.value());
+    const model = genAI.getGenerativeModel({ model: "gemini-3.8-flash" });
+    const nowStr = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false });
+
+    // ==========================================
+    // 功能一：紙本「入信願書」拍照 OCR 自動建檔
+    // ==========================================
+    if (isImage) {
+      try {
+        const blobClient = new messagingApi.MessagingApiBlobClient({ channelAccessToken: lineChannelAccessToken.value() });
+        const stream = await blobClient.getMessageContent(event.message.id);
+        const chunks = [];
+        for await (const chunk of stream) {
+          chunks.push(chunk);
+        }
+        const imageBase64 = Buffer.concat(chunks).toString("base64");
+
+        const ocrPrompt = `
+這是一張「入信願書」（Admission Form）的照片。請將照片中的文字進行 OCR 辨識，並擷取以下資訊，最後以 JSON 格式回傳。
+請務必將民國年份 (例如：民國 112 年 或 85年) 自動轉換為西元年份 (例如：2023 或 1996)，格式必須為 YYYY-MM-DD。
+如果未提供某個欄位，請回傳 null 或空字串。
+
+請以 JSON 格式回傳，必須包含以下欄位：
+- isAdmissionForm (布林值：照片內容是否為入信願書，若否則設為 false)
+- name (字串：入信者姓名)
+- joinDate (字串：入信日期，格式為 YYYY-MM-DD，請自動將民國轉為西元)
+- born (字串：出生年月日，格式為 YYYY-MM-DD，請自動將民國轉為西元)
+- guide (陣列：介紹人姓名字串陣列，通常有1~2位)
+- sewajin (字串：世話人)
+- adress (字串：通訊地址)
+- phone (字串：行動電話)
+- tel (字串：市話/家用電話)
+- note (字串：備註或其他文字，如助教師)
+- reply (字串：若非入信願書，請簡短友善告知)
+
+請直接回傳純 JSON 字串，不要包含任何 Markdown 標記（例如 \`\`\`json 等）。
+`;
+        const aiResponse = await model.generateContent([
+          ocrPrompt,
+          {
+            inlineData: {
+              data: imageBase64,
+              mimeType: "image/jpeg"
+            }
+          }
+        ]);
+
+        let parsedData;
+        try {
+          const rawText = aiResponse.response.text();
+          const cleanText = rawText.replace(/^```json/g, '').replace(/^```/g, '').replace(/```$/g, '').trim();
+          parsedData = JSON.parse(cleanText);
+        } catch (e) {
+          logger.error("Failed to parse admission OCR JSON", e);
+          if (isPrivateChat || isTagged) {
+            await client.replyMessage({
+              replyToken,
+              messages: [{ type: "text", text: "抱歉，無法清晰辨識這張圖片的內容，請嘗試拍攝更清楚平整的照片。" }]
+            });
+          }
+          return;
+        }
+
+        if (parsedData.isAdmissionForm && parsedData.name && parsedData.joinDate) {
+          // 檢查 ID 碰撞並遞增補綴 'A'
+          let joinDateId = parsedData.joinDate;
+          let exists = true;
+          while (exists) {
+            const docSnap = await db.collection("member").doc(joinDateId).get();
+            if (docSnap.exists) {
+              joinDateId += "A";
+            } else {
+              exists = false;
+            }
+          }
+
+          const guideList = Array.isArray(parsedData.guide) ? parsedData.guide.filter(Boolean) : (parsedData.guide ? [parsedData.guide] : []);
+
+          await db.collection("member").doc(joinDateId).set({
+            name: parsedData.name.trim(),
+            guide: guideList,
+            sewajin: parsedData.sewajin || "",
+            adress: parsedData.adress || "",
+            tel: parsedData.tel || "",
+            phone: parsedData.phone || "",
+            born: parsedData.born || "",
+            leader: "",
+            note: parsedData.note || "",
+            post: (parsedData.note && parsedData.note.includes("助教師")) ? "助教師" : ((parsedData.note && parsedData.note.includes("世話人")) ? "世話人" : ""),
+            connect: true,
+            part: "青年部",
+            source: "line_ocr",
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+
+          const webUrl = "https://shumei-2025.web.app/youth/list.html?q=" + encodeURIComponent(parsedData.name);
+          const replyText = `🎉 收到入信願書！已成功為「${parsedData.name}」建立成員資料。\n\n📅 入信日期：${parsedData.joinDate} (編號: ${joinDateId})\n🎂 出生日期：${parsedData.born || "未註明"}\n🤝 介紹人：${guideList.join("、") || "無"}\n🌾 世話人：${parsedData.sewajin || "無"}\n📞 電話：${parsedData.phone || parsedData.tel || "未註明"}\n🏠 地址：${parsedData.adress || "未註明"}\n\n🔗 點此查看青年部名冊：\n${webUrl}`;
+
+          await client.replyMessage({
+            replyToken,
+            messages: [{ type: "text", text: replyText }]
+          });
+          return;
+        } else {
+          // 非願書照片
+          if (isPrivateChat || isTagged) {
+            const replyMsg = parsedData.reply || "這張照片看起來不是「入信願書」喔！請傳送平整清晰的紙本願書照片。";
+            await client.replyMessage({
+              replyToken,
+              messages: [{ type: "text", text: replyMsg }]
+            });
+          }
+          return;
+        }
+      } catch (err) {
+        logger.error("Error processing admission image OCR", err);
+        if (isPrivateChat || isTagged) {
+          await client.replyMessage({
+            replyToken,
+            messages: [{ type: "text", text: "抱歉，願書辨識過程發生異常，請稍後再試。" }]
+          }).catch(e => logger.error("Error sending error reply", e));
+        }
+        return;
+      }
+    }
+
+    // ==========================================
+    // 功能二：淨靈 / 施光 口語打卡與統計查詢 (不記錄施光時間)
+    // ==========================================
+    if (isJyoreiKeyword) {
+      const isJyoreiStats = isStats || /幾次|總計|累積/.test(userMessage);
+
+      // 2A. 查詢淨靈統計
+      if (isJyoreiStats) {
+        try {
+          const snapshot = await db.collection("jyorei_logs").get();
+          let grandTotal = 0;
+          let totalBelievers = 0;
+          let totalNonBelievers = 0;
+          let myGrandTotal = 0;
+          let myBelievers = 0;
+          let myNonBelievers = 0;
+
+          snapshot.forEach(doc => {
+            const d = doc.data();
+            const b = parseInt(d.totalBeliever ?? d.selfBeliever ?? 0) || 0;
+            const nb = parseInt(d.totalNonBeliever ?? d.selfNonBeliever ?? 0) || 0;
+            const g = parseInt(d.grandTotal ?? (b + nb)) || (b + nb);
+
+            grandTotal += g;
+            totalBelievers += b;
+            totalNonBelievers += nb;
+
+            if (d.reporter === userName || d.lineUserId === userId) {
+              myGrandTotal += g;
+              myBelievers += b;
+              myNonBelievers += nb;
+            }
+          });
+
+          let replyText = `✨【秀明淨靈實踐統計】✨\n\n`;
+          replyText += `🌍 全會累積打卡：${snapshot.size} 筆\n`;
+          replyText += `🙏 全會總人次：${grandTotal.toLocaleString()} 人次\n`;
+          replyText += `   • 信徒：${totalBelievers.toLocaleString()} 人次\n`;
+          replyText += `   • 未信徒：${totalNonBelievers.toLocaleString()} 人次\n\n`;
+          replyText += `👤 您 (${userName}) 的實踐累積：\n`;
+          replyText += `   • 總人次：${myGrandTotal.toLocaleString()} 人次\n`;
+          replyText += `   • 信徒：${myBelievers.toLocaleString()} 人次\n`;
+          replyText += `   • 未信徒：${myNonBelievers.toLocaleString()} 人次\n\n`;
+          replyText += `🔗 查看全會即時打卡動態：\nhttps://shumei-2025.web.app/activities/jyorei.html`;
+
+          await client.replyMessage({
+            replyToken,
+            messages: [{ type: "text", text: replyText }]
+          });
+          return;
+        } catch (err) {
+          logger.error("Error fetching jyorei stats", err);
+        }
+      }
+
+      // 2B. 自然語言登記淨靈打卡
+      try {
+        const jyoreiPrompt = `
+現在的台北時間是：${nowStr}
+目前發話者的名稱是：「${userName}」
+
+請分析使用者的訊息，判斷是否為「淨靈/施光打卡紀錄」。
+注意：本系統「不需要」且「不記錄」施光時間/分鐘數，只記錄人數與次數（人次）。
+使用者可能說：「今天施光2次信徒、1次未信徒」、「給小明淨靈」、「今天在家淨靈2次」。
+如果使用者未特別指明信徒或未信徒，預設全數計為信徒人次 (believerCount)。
+
+請以 JSON 格式回傳：
+- isJyoreiLog (布林值：是否為淨靈/施光打卡紀錄，若否則設為 false)
+- believerCount (整數：信徒人次，預設0)
+- nonBelieverCount (整數：未信徒人次，預設0)
+- totalCount (整數：總人次，必須大於0)
+- targetNames (字串陣列：施光對象名字，若無則為空陣列)
+- date (字串：日期 YYYY-MM-DD，若有相對時間如今天/昨天請推算)
+- reply (字串：若非打卡時的親切回應，否則 null)
+
+使用者訊息：
+"${userMessage}"
+`;
+        const aiResponse = await model.generateContent(jyoreiPrompt);
+        const rawText = aiResponse.response.text();
+        const cleanText = rawText.replace(/^```json/g, '').replace(/^```/g, '').replace(/```$/g, '').trim();
+        const parsedData = JSON.parse(cleanText);
+
+        if (parsedData.isJyoreiLog && parsedData.totalCount > 0) {
+          const logDate = parsedData.date || new Date().toISOString().split("T")[0];
+          const bCount = parsedData.believerCount || 0;
+          const nbCount = parsedData.nonBelieverCount || 0;
+          const tCount = parsedData.totalCount || (bCount + nbCount);
+
+          await db.collection("jyorei_logs").add({
+            date: logDate,
+            reporter: userName,
+            lineUserId: userId,
+            selfBeliever: bCount,
+            selfNonBeliever: nbCount,
+            selfTotal: tCount,
+            totalBeliever: bCount,
+            totalNonBeliever: nbCount,
+            grandTotal: tCount,
+            targetNames: parsedData.targetNames || [],
+            source: "line",
+            timestamp: admin.firestore.FieldValue.serverTimestamp()
+          });
+
+          const targetsStr = (parsedData.targetNames && parsedData.targetNames.length > 0) ? parsedData.targetNames.join("、") : "未特別註明";
+          const replyText = `🙏 感謝您的誠心實踐！已成功記錄淨靈打卡！\n\n👤 實踐者：${userName}\n📅 日期：${logDate}\n✨ 本次施光：共 ${tCount} 人次\n   • 信徒：${bCount} 人次\n   • 未信徒：${nbCount} 人次\n🎯 施光對象：${targetsStr}\n\n🔗 查看全會即時打卡動態：\nhttps://shumei-2025.web.app/activities/jyorei.html`;
+
+          await client.replyMessage({
+            replyToken,
+            messages: [{ type: "text", text: replyText }]
+          });
+          return;
+        }
+      } catch (err) {
+        logger.error("Error processing jyorei log", err);
+      }
+    }
+
+    // ==========================================
+    // 功能三：幹部專屬成員與靈線快查助理
+    // ==========================================
+    if (isLineageKeyword) {
+      try {
+        const queryPrompt = `
+請分析以下使用者的詢問，判斷意圖為以下哪一種：
+1. "contact_query": 詢問成員的電話、市話、手機或通訊地址 (例如："查 官泰佑 電話"、"查 豔良 住址"、"小明電話")
+2. "downline_query": 詢問某成員的下線、他介紹了誰入信 (例如："小明的下線有誰"、"美美介紹了誰"、"誰是泰佑介紹的")
+3. "lineage_query": 詢問成員的介紹人、世話人、組長、組別或基本靈線脈絡 (例如："小明的介紹人是誰"、"誰是陳小華的世話人"、"美美所屬組別")
+4. "other": 非以上查詢
+
+請以 JSON 格式回傳：
+- intent (字串："contact_query" | "downline_query" | "lineage_query" | "other")
+- targetMemberName (字串：欲查詢的成員姓名，若未提及則為 null)
+
+使用者訊息：
+"${userMessage}"
+`;
+        const aiResponse = await model.generateContent(queryPrompt);
+        const rawText = aiResponse.response.text();
+        const cleanText = rawText.replace(/^```json/g, '').replace(/^```/g, '').replace(/```$/g, '').trim();
+        const parsedQuery = JSON.parse(cleanText);
+
+        if (parsedQuery.intent !== "other" && parsedQuery.targetMemberName) {
+          const targetName = parsedQuery.targetMemberName.trim();
+
+          // 隱私防護規則：群組中禁止公開回覆電話與地址
+          if (parsedQuery.intent === "contact_query" && !isPrivateChat) {
+            await client.replyMessage({
+              replyToken,
+              messages: [{ type: "text", text: `🔒 為保護個人隱私，查詢「${targetName}」的電話與通訊地址，請在 1 對 1 私聊向我查詢喔！` }]
+            });
+            return;
+          }
+
+          // 查詢 Firestore member
+          const memberSnapshot = await db.collection("member").get();
+          let matchedMember = null;
+          let downlines = [];
+
+          memberSnapshot.forEach(doc => {
+            const data = doc.data();
+            const name = (data.name || "").trim();
+            if (name === targetName || name.includes(targetName) || targetName.includes(name)) {
+              if (!matchedMember) matchedMember = { id: doc.id, ...data };
+            }
+
+            // 檢查下線 (guide 陣列中是否包含 targetName)
+            if (data.guide && Array.isArray(data.guide)) {
+              if (data.guide.some(g => g && (g.includes(targetName) || targetName.includes(g)))) {
+                downlines.push(name || doc.id);
+              }
+            }
+          });
+
+          // 3A. 聯絡資訊查詢 (僅在 1 對 1 私聊)
+          if (parsedQuery.intent === "contact_query") {
+            if (!matchedMember) {
+              await client.replyMessage({
+                replyToken,
+                messages: [{ type: "text", text: `查無成員「${targetName}」的聯絡資訊。\n可至青年部名冊查詢：https://shumei-2025.web.app/youth/list.html` }]
+              });
+              return;
+            }
+
+            const phone = matchedMember.phone || "未提供";
+            const tel = matchedMember.tel || "未提供";
+            const adress = matchedMember.adress || "未提供";
+            const replyText = `👤【${matchedMember.name}】聯絡資訊：\n\n📱 行動電話：${phone}\n☎️ 市內電話：${tel}\n🏠 通訊地址：${adress}\n\n🔗 查看名冊：\nhttps://shumei-2025.web.app/youth/list.html?q=${encodeURIComponent(matchedMember.name)}`;
+
+            await client.replyMessage({
+              replyToken,
+              messages: [{ type: "text", text: replyText }]
+            });
+            return;
+          }
+
+          // 3B. 查詢下線名單
+          if (parsedQuery.intent === "downline_query") {
+            let replyText = `🌱【${targetName}】介紹入信的下線名單：\n\n`;
+            if (downlines.length === 0) {
+              replyText += `目前系統中尚無由 ${targetName} 擔任介紹人的成員紀錄。`;
+            } else {
+              replyText += downlines.map((m, i) => `${i + 1}. ${m}`).join("\n");
+              replyText += `\n\n共計 ${downlines.length} 位成員。`;
+            }
+            replyText += `\n\n🔗 查看完整靈線圖：\nhttps://shumei-2025.web.app/youth/lineage.html`;
+
+            await client.replyMessage({
+              replyToken,
+              messages: [{ type: "text", text: replyText }]
+            });
+            return;
+          }
+
+          // 3C. 查詢介紹人 / 世話人 / 靈線脈絡
+          if (parsedQuery.intent === "lineage_query") {
+            if (!matchedMember) {
+              await client.replyMessage({
+                replyToken,
+                messages: [{ type: "text", text: `查無成員「${targetName}」的靈線資料。\n可至青年部名冊查詢：https://shumei-2025.web.app/youth/list.html` }]
+              });
+              return;
+            }
+
+            const guideStr = (matchedMember.guide && matchedMember.guide.length > 0) ? matchedMember.guide.filter(Boolean).join("、") : "無";
+            const sewajinStr = matchedMember.sewajin || "無";
+            const leaderStr = matchedMember.leader || "未分組";
+            const partStr = matchedMember.part || "青年部";
+
+            const replyText = `🌿【${matchedMember.name}】靈線與成員資訊：\n\n🤝 介紹人：${guideStr}\n🌾 世話人：${sewajinStr}\n🚩 所屬組長：${leaderStr}\n🏛️ 所屬部門：${partStr}\n📅 入信編號：${matchedMember.id.split('A')[0]}\n\n🔗 查看 3D 靈線關係網絡：\nhttps://shumei-2025.web.app/youth/lineage.html`;
+
+            await client.replyMessage({
+              replyToken,
+              messages: [{ type: "text", text: replyText }]
+            });
+            return;
+          }
+        }
+      } catch (err) {
+        logger.error("Error processing lineage query", err);
+      }
+    }
+
+    // ==========================================
+    // 功能四：座談會統計查詢 (原既有功能)
+    // ==========================================
     if (isStats) {
       try {
         const snapshot = await db.collection("seminars").get();
@@ -167,7 +554,6 @@ exports.processLineEvent = onMessagePublished(
           grouped[dateKey].forEach(sem => {
             let attendeesStr = "";
             if (sem.attendees && sem.attendees !== "無" && sem.attendees.trim() !== "") {
-              // 將逗號統一替換成頓號，去除多餘空格
               let cleanedAttendees = sem.attendees.replace(/[,，\s]+/g, "、").replace(/^、|、$/g, "");
               attendeesStr = "（" + cleanedAttendees + "）";
             }
@@ -182,26 +568,14 @@ exports.processLineEvent = onMessagePublished(
         });
         return;
       } catch (err) {
-        logger.error("Error fetching stats", err);
+        logger.error("Error fetching seminar stats", err);
       }
     }
 
-    let userName = "發言者";
+    // ==========================================
+    // 功能五：座談會登記與一般問答 (原既有功能)
+    // ==========================================
     try {
-      if (userId) {
-        const profile = await client.getProfile(userId);
-        userName = profile.displayName || "發言者";
-      }
-    } catch (e) {
-      logger.error("Failed to get user profile", e);
-    }
-
-    const genAI = new GoogleGenerativeAI(geminiApiKey.value());
-    // 升級至最新的 Gemini 3.8 Flash 模型
-    const model = genAI.getGenerativeModel({ model: "gemini-3.8-flash" });
-
-    try {
-      const nowStr = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false });
       const prompt = `
 現在的台北時間是：${nowStr}
 目前發話者的 LINE 名稱是：「${userName}」
@@ -244,7 +618,6 @@ exports.processLineEvent = onMessagePublished(
         parsedData = JSON.parse(cleanText);
       } catch (e) {
         logger.error("Failed to parse Gemini response as JSON", e);
-        // AI 回應解析非預期 JSON 時，若在群組中且非 tag，則靜默略過，不報錯打擾群組
         if (!isPrivateChat && !isTagged) return;
         throw new Error("AI 解析失敗");
       }
@@ -275,17 +648,14 @@ exports.processLineEvent = onMessagePublished(
 
         replyText = "收到您的登記資訊！\n\n成員：" + parsedData.memberName + "\n日期：" + parsedData.date + " " + (parsedData.time || "") + "\n地點：" + (parsedData.location || "未提供") + "\n感受：" + (parsedData.feelings || "未提供") + "\n目標：" + (parsedData.goals || "未提供") + "\n參加者：" + (parsedData.attendees || "無") + "\n\n已為您成功同步至網站紀錄！\n🔗 點此查看網站紀錄：\n" + webUrl;
       } else {
-        // 如果不是有效登記：
         if (parsedData.reply && (isPrivateChat || isTagged)) {
           replyText = parsedData.reply;
         } else if (isPrivateChat || isTagged) {
-          replyText = "您好！如果您想紀錄座談會，請輸入包含：時間、地點、主要成員、感受、目標以及其他參加者的資訊喔！可以直接用口語的方式告訴我～\n若要查詢當月座談會，請輸入「9月統計」或「統計」。";
+          replyText = "您好！我是秀明青年小助理～\n您可以透過我完成以下功能：\n1. 📷 拍照上傳「入信願書」自動建檔\n2. 🙏 傳送「今天施光2次信徒」登記淨靈人次或「淨靈統計」\n3. 🌿 詢問成員靈線、介紹人或私訊查詢電話地址\n4. 🍑 紀錄座談會或查詢當月座談統計！";
         }
-        // 若在群組且非 @ 標記，也不屬於有效登記與提問，則保持安靜 (replyText 為空)
       }
 
       if (replyText !== "") {
-        // Reply via LINE API
         await client.replyMessage({
           replyToken: replyToken,
           messages: [{ type: "text", text: replyText }],
@@ -294,7 +664,6 @@ exports.processLineEvent = onMessagePublished(
 
     } catch (error) {
       logger.error("Error processing event", error);
-      // 只有在 1對1 私聊或明確 @ 標註時才回報系統忙碌，避免群組聊天觸發關鍵字時狂跳錯誤訊息
       if (replyToken && (isPrivateChat || isTagged)) {
         await client.replyMessage({
           replyToken: replyToken,
