@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>秀明青年 - 幹部名單與 LINE 綁定管理</title>
+    <!-- PWA Settings -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#ffa100">
+    <link rel="apple-touch-icon" href="/logo.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="秀明青年">
+    <link rel="icon" href="/logo.png" type="image/png">
+    <script src="/js/pwa.js" defer></script>
+                        
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/css/app.css">
+
+    <style>
+      .cadre-container {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 20px 14px 100px 14px;
+      }
+      .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 14px;
+        margin-bottom: 24px;
+      }
+      .kpi-box {
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 14px;
+        padding: 16px;
+        backdrop-filter: blur(15px);
+        -webkit-backdrop-filter: blur(15px);
+        box-shadow: var(--glass-shadow);
+      }
+      .kpi-box .num {
+        font-size: 28px;
+        font-weight: 700;
+        margin-top: 4px;
+      }
+      .cadre-card {
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 14px;
+        padding: 16px 20px;
+        margin-bottom: 12px;
+        backdrop-filter: blur(15px);
+        -webkit-backdrop-filter: blur(15px);
+        box-shadow: var(--glass-shadow);
+        transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      }
+      .cadre-card:hover {
+        transform: scale(1.015);
+        border-color: rgba(0, 243, 255, 0.35);
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
+      }
+      .line-badge-bound {
+        background: rgba(16, 185, 129, 0.15);
+        color: #10B981;
+        border: 1px solid rgba(16, 185, 129, 0.35);
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .line-badge-unbound {
+        background: rgba(245, 158, 11, 0.15);
+        color: #F59E0B;
+        border: 1px solid rgba(245, 158, 11, 0.35);
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .search-bar-wrap {
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 12px;
+        padding: 6px 14px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .search-bar-wrap input {
+        border: none !important;
+        background: transparent !important;
+        color: var(--text-main) !important;
+        padding: 6px 0;
+        box-shadow: none !important;
+      }
+      .search-bar-wrap input:focus {
+        outline: none;
+      }
+      .filter-pill {
+        cursor: pointer;
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 13px;
+        font-weight: 500;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--text-muted);
+        transition: all 0.2s ease;
+      }
+      .filter-pill.active {
+        background: rgba(0, 243, 255, 0.15);
+        border-color: #00F3FF;
+        color: #00F3FF;
+        font-weight: 600;
+      }
+      .line-brand-color {
+        color: #06C755;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- App Header -->
+    <header class="app-header">
+      <h1 class="app-title">
+        <img onclick="this.classList.toggle('zoomed')" class="logo-zoomable" src="/logo.png" alt="Logo">
+        <span>秀明青年</span>
+      </h1>
+      <!-- Desktop navigation -->
+      <div class="app-header-nav desktop-only">
+        <a href="dashboard.html" class="bottom-nav-item" style="flex: none; flex-direction: row; gap: 4px;">總覽</a>
+        <a href="admin.html" class="bottom-nav-item" style="flex: none; flex-direction: row; gap: 4px;">名單</a>
+        <a href="cadres.html" class="bottom-nav-item active" style="flex: none; flex-direction: row; gap: 4px; color: #00F3FF; font-weight: 600;">幹部綁定</a>
+        <a href="group.html" class="bottom-nav-item" style="flex: none; flex-direction: row; gap: 4px;">分組</a>
+        <a href="seminar.html" class="bottom-nav-item" style="flex: none; flex-direction: row; gap: 4px;">座談會</a>
+        <a href="lineage.html" class="bottom-nav-item" style="flex: none; flex-direction: row; gap: 4px;">靈線</a>
+        <a href="/farm/natural-farm.html" class="bottom-nav-item" style="flex: none; flex-direction: row; gap: 4px; color: #52b788; font-weight: 600;">🌾 自然農法</a>
+        <button onclick="signOut()" class="bottom-nav-item" style="flex: none; flex-direction: row; gap: 4px; background: none; border: none;">登出</button>
+      </div>
+      <div class="d-flex gap-2">
+        <button class="btn btn-outline-info btn-sm interactive" onclick="openLineGuideModal()">
+          <i class="fa-brands fa-line line-brand-color me-1"></i> 綁定教學
+        </button>
+        <button class="btn btn-primary-custom interactive" onclick="openAddCadreModal()" style="padding: 6px 14px; font-size: 13px;">
+          ＋ 新增幹部
+        </button>
+      </div>
+    </header>
+
+    <div class="cadre-container">
+      <!-- Title & Intro -->
+      <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+        <div>
+          <h2 class="fs-4 fw-bold text-white mb-1 d-flex align-items-center gap-2">
+            <i class="fa-solid fa-id-badge text-info"></i> 幹部名單與 LINE 帳號對應
+          </h2>
+          <p class="text-muted small mb-0">
+            維護青年幹部清單，綁定資料庫本名與 LINE 暱稱/User ID，以授權 LINE Bot 自動建檔與聯絡查詢。
+          </p>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <button class="btn btn-sm btn-outline-secondary interactive" onclick="reloadCadresData()">
+            <i class="fa-solid fa-arrows-rotate me-1"></i> 重新載入
+          </button>
+        </div>
+      </div>
+
+      <!-- KPI Summary Cards -->
+      <div class="kpi-grid">
+        <div class="kpi-box">
+          <div class="text-muted small">總幹部人數</div>
+          <div class="num text-white" id="stat-total-cadres">0</div>
+        </div>
+        <div class="kpi-box">
+          <div class="text-muted small">✅ 已綁定 LINE</div>
+          <div class="num text-success" id="stat-bound-cadres">0</div>
+        </div>
+        <div class="kpi-box">
+          <div class="text-muted small">⏳ 尚未綁定</div>
+          <div class="num text-warning" id="stat-unbound-cadres">0</div>
+        </div>
+        <div class="kpi-box">
+          <div class="text-muted small">系統授權有效率</div>
+          <div class="num text-info" id="stat-active-rate">100%</div>
+        </div>
+      </div>
+
+      <!-- Search & Filters -->
+      <div class="row g-3 align-items-center mb-3">
+        <div class="col-md-6 col-12">
+          <div class="search-bar-wrap">
+            <i class="fa-solid fa-magnifying-glass text-muted"></i>
+            <input type="text" id="cadre-search-input" placeholder="搜尋資料庫姓名、LINE 暱稱或職位..." oninput="filterCadresList()">
+          </div>
+        </div>
+        <div class="col-md-6 col-12 d-flex gap-2 justify-content-md-end flex-wrap">
+          <span class="filter-pill active" onclick="setFilter('all', this)">全部 (<span id="count-all">0</span>)</span>
+          <span class="filter-pill" onclick="setFilter('bound', this)">已綁定 (<span id="count-bound">0</span>)</span>
+          <span class="filter-pill" onclick="setFilter('unbound', this)">未綁定 (<span id="count-unbound">0</span>)</span>
+        </div>
+      </div>
+
+      <!-- Cadres List Container -->
+      <div id="cadres-list-container">
+        <div class="text-center py-5 text-muted">
+          <div class="spinner-border spinner-border-sm text-info mb-2" role="status"></div>
+          <div>載入幹部名冊中...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal 1: 新增 / 編輯幹部對話框 -->
+    <div class="modal fade" id="cadreEditModal" tabindex="-1" aria-labelledby="cadreEditModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content glass-card text-white" style="background: rgba(13, 20, 36, 0.96); backdrop-filter: blur(20px); border-radius: 18px; border: 1px solid rgba(0, 243, 255, 0.25);">
+          <div class="modal-header border-0 pb-1 pt-3 px-4">
+            <h5 class="modal-title fs-5 fw-bold text-white d-flex align-items-center gap-2" id="cadreEditModalLabel">
+              <i class="fa-solid fa-user-pen text-info"></i> 設定幹部與 LINE 綁定
+            </h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <form id="cadreForm" onsubmit="saveCadreMapping(event); return false;">
+            <div class="modal-body px-4 py-2">
+              <input type="hidden" id="edit-original-name" value="">
+
+              <!-- 1. 資料庫姓名 -->
+              <div class="mb-3">
+                <label for="cadre-db-name" class="form-label small text-info fw-semibold">
+                  資料庫成員姓名 <span class="text-danger">*</span>
+                </label>
+                <input type="text" class="form-control bg-dark text-white border-secondary border-opacity-50" id="cadre-db-name" list="member-names-datalist" placeholder="輸入或從名冊挑選姓名" required autocomplete="off">
+                <datalist id="member-names-datalist">
+                  <!-- 動態載入既有名冊選項 -->
+                </datalist>
+                <div class="form-text text-muted" style="font-size: 11px;">
+                  此姓名需與青年名冊 `member` 文件中的「姓名」一致。
+                </div>
+              </div>
+
+              <!-- 2. 幹部角色/職位 -->
+              <div class="mb-3">
+                <label for="cadre-role" class="form-label small text-muted fw-semibold">職稱 / 所屬組別</label>
+                <input type="text" class="form-control bg-dark text-white border-secondary border-opacity-50" id="cadre-role" placeholder="例如：青年小組長 / 世話人 / 總會幹部" value="青年小組長">
+              </div>
+
+              <!-- 3. LINE 顯示名稱 -->
+              <div class="mb-3">
+                <label for="cadre-line-name" class="form-label small text-info fw-semibold">
+                  <i class="fa-brands fa-line line-brand-color me-1"></i> LINE 顯示暱稱
+                </label>
+                <input type="text" class="form-control bg-dark text-white border-secondary border-opacity-50" id="cadre-line-name" placeholder="輸入幹部在 LINE 上顯示的名稱 (例如：Sungen Tsai)">
+                <div class="form-text text-muted" style="font-size: 11px;">
+                  若幹部尚未綁定，可先預填暱稱備查；當幹部於 LINE 發送認證指令後將自動同步校準。
+                </div>
+              </div>
+
+              <!-- 4. LINE User ID (進階/選填) -->
+              <div class="mb-3">
+                <label for="cadre-line-uid" class="form-label small text-muted fw-semibold d-flex justify-content-between">
+                  <span>LINE User ID (選填)</span>
+                  <span class="text-muted" style="font-size: 10px;">以 U 開頭之 33 碼識別碼</span>
+                </label>
+                <input type="text" class="form-control bg-dark text-white border-secondary border-opacity-50 font-monospace" id="cadre-line-uid" placeholder="例如：U1234567890abcdef..." style="font-size: 13px;">
+              </div>
+
+              <!-- 5. 權限開關 -->
+              <div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" id="cadre-active-switch" checked>
+                <label class="form-check-label small text-white" for="cadre-active-switch">
+                  啟用編輯與查詢授權
+                </label>
+              </div>
+            </div>
+            <div class="modal-footer border-0 px-4 pb-4 pt-2 d-flex justify-content-between">
+              <button type="button" class="btn btn-sm btn-outline-danger" id="btn-delete-cadre" onclick="deleteCadreMapping()" style="display: none;">
+                移除幹部
+              </button>
+              <div class="d-flex gap-2 ms-auto">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="submit" id="btn-save-cadre" class="btn btn-sm btn-info text-dark fw-bold px-4 interactive">
+                  💾 儲存設定
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal 2: LINE 綁定教學與指令指南 -->
+    <div class="modal fade" id="lineGuideModal" tabindex="-1" aria-labelledby="lineGuideModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content glass-card text-white" style="background: rgba(13, 20, 36, 0.96); backdrop-filter: blur(20px); border-radius: 18px; border: 1px solid rgba(0, 243, 255, 0.25);">
+          <div class="modal-header border-0 pb-1 pt-3 px-4">
+            <h5 class="modal-title fs-5 fw-bold text-white d-flex align-items-center gap-2" id="lineGuideModalLabel">
+              <i class="fa-brands fa-line line-brand-color"></i> LINE 幹部快速綁定說明
+            </h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body px-4 py-3">
+            <div class="mb-3">
+              <div class="fw-bold text-info mb-1">步驟一：加入秀明官方 LINE 小幫手</div>
+              <p class="small text-muted mb-0">請幹部確認已加入官方 LINE 帳號好友。</p>
+            </div>
+
+            <div class="mb-3">
+              <div class="fw-bold text-info mb-1">步驟二：在 1 對 1 私聊中發送認證指令</div>
+              <p class="small text-muted mb-2">請幹部於私聊中輸入下列格式指令：</p>
+              <div class="bg-black bg-opacity-50 p-3 rounded-3 border border-secondary border-opacity-50 font-monospace text-light d-flex justify-content-between align-items-center">
+                <code class="text-warning" id="sample-line-command">幹部認證 shumei567sty 您的姓名</code>
+                <button class="btn btn-sm btn-outline-info" onclick="copySampleCommand()">複製</button>
+              </div>
+              <div class="form-text text-muted mt-2" style="font-size: 11px;">
+                例如：<code>幹部認證 shumei567sty 松恩</code>（中文字需與資料庫名冊完全相符）
+              </div>
+            </div>
+
+            <div class="mb-2">
+              <div class="fw-bold text-info mb-1">步驟三：自動開通授權</div>
+              <p class="small text-muted mb-0">
+                LINE 機器人回覆認證成功後，系統將自動擷取其 LINE User ID 與 LINE 暱稱完成綁定，並在此網頁上亮起綠燈！
+              </p>
+            </div>
+          </div>
+          <div class="modal-footer border-0 px-4 pb-3">
+            <button type="button" class="btn btn-sm btn-info text-dark fw-bold px-4" data-bs-dismiss="modal">我知道了</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1090">
+      <div id="actionToast" class="toast align-items-center text-white bg-dark border-0 shadow" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+          <div class="toast-body" id="toast-message">操作完成</div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-firestore-compat.js"></script>
+    <script src="/js/cadres.js"></script>
+  </body>
+</html>

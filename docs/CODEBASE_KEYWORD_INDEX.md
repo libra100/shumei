@@ -22,6 +22,7 @@
 13. [自家採種與種子兌換 (Seed Bank & Karma Exchange)](#13-自家採種與種子兌換-seed-bank--karma-exchange)
 14. [LINE Bot 與 Gemini OCR 後端 (Cloud Functions & AI)](#14-line-bot-與-gemini-ocr-後端-cloud-functions--ai)
 15. [URL 重定向與 PWA 設定 (Routing & Service Worker)](#15-url-重定向與-pwa-設定-routing--service-worker)
+16. [幹部名單與 LINE 帳號綁定管理 (Cadres & LINE Mapping)](#16-幹部名單與-line-帳號綁定管理-cadres--line-mapping)
 
 ---
 
@@ -241,3 +242,21 @@
     *   `public/manifest.json`: PWA 主題色與圖示
     *   `public/sw.js`: Service Worker 快取策略
     *   `public/js/pwa.js`: 註冊 Service Worker 與安裝提示
+
+---
+
+## 16. 幹部名單與 LINE 帳號綁定管理 (Cadres & LINE Mapping)
+*   **功能描述**：幹部名冊管理介面，將資料庫成員本名與 LINE 顯示暱稱/User ID 建立對應關係；提供線上即時監聽、手動綁定、一鍵複製專屬 LINE 認證指令、解除綁定與停用授權。
+*   **搜尋關鍵字**：`幹部名單`, `幹部綁定`, `LINE綁定`, `LINE暱稱`, `info/editors`, `cadres.html`, `cadres.js`, `cadreEditModal`, `lineUserIdToName`, `copyCadreLineCommand`
+*   **前端 HTML**：`public/youth/cadres.html`
+*   **前端 JS**：`public/js/cadres.js`
+*   **核心函式 / 符號**：
+    *   `listenToCadresData()`: 即時監聽 `info/editors` 文件變更，即時響應幹部在 LINE 的認證狀態
+    *   `openAddCadreModal()` / `openEditCadreModal(name)`: 開啟手動綁定與編輯彈窗
+    *   `saveCadreMapping()`: 寫入/更新 `info/editors`（同動更新 `editorList`、`editors[name]` 與 `lineUserIdToName`）
+    *   `unbindCadre(name)`: 解除特定幹部與 LINE 帳號之綁定關聯
+    *   `copyCadreLineCommand(name)`: 複製專屬 LINE 認證指令 `幹部認證 [密碼] [姓名]`
+*   **Firestore 集合**：
+    *   `info/editors` (欄位: `editorList`, `editors`, `lineUserIdToName`)
+    *   `member` (用於姓名自動補完與下拉選擇)
+    *   `info/set` (用於讀取認證密碼)

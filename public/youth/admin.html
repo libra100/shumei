@@ -73,6 +73,7 @@
       <div class="app-header-nav desktop-only">
         <a href="dashboard.html" class="bottom-nav-item" style="flex: none; flex-direction: row; gap: 4px;">總覽</a>
         <a href="admin.html" class="bottom-nav-item active" style="flex: none; flex-direction: row; gap: 4px;">名單</a>
+        <a href="cadres.html" class="bottom-nav-item" style="flex: none; flex-direction: row; gap: 4px;">幹部綁定</a>
         <a href="group.html" class="bottom-nav-item" style="flex: none; flex-direction: row; gap: 4px;">分組</a>
         <a href="seminar.html" class="bottom-nav-item" style="flex: none; flex-direction: row; gap: 4px;">座談會</a>
         <a href="lineage.html" class="bottom-nav-item" style="flex: none; flex-direction: row; gap: 4px;">靈線</a>
@@ -80,6 +81,11 @@
         <button onclick="signOut()" class="bottom-nav-item" style="flex: none; flex-direction: row; gap: 4px; background: none; border: none;">登出</button>
       </div>
       <div class="d-flex gap-2">
+        <a href="cadres.html" class="btn btn-outline-info interactive" style="padding: 8px 12px; font-size: 14px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+          <i class="fa-brands fa-line text-success"></i>
+          <span class="desktop-only">幹部 LINE 綁定</span>
+          <span class="mobile-only">幹部</span>
+        </a>
         <button class="btn btn-secondary-custom interactive" onclick="excel()" style="padding: 8px 12px; font-size: 14px;">匯出 Excel</button>
         <button class="btn btn-primary-custom interactive" data-bs-toggle="modal" data-bs-target="#addMemberModal" style="padding: 8px 14px; font-size: 14px; white-space: nowrap;">
           <span class="desktop-only">新增成員</span>
