@@ -102,6 +102,36 @@ function submitQueryPassword() {
   }
 }
 
+function getCurrentEditorLabel() {
+  const user = auth.currentUser;
+  if (user && user.email) {
+    return `${user.displayName || user.email} (${user.email})`;
+  }
+  return '幹部 (網頁密碼驗證)';
+}
+
+function syncEditorsRegistry() {
+  Promise.all([
+    db.collection('info').doc('youth').get(),
+    db.collection('info').doc('admins').get(),
+    db.collection('info').doc('editors').get()
+  ]).then(([youthDoc, adminsDoc, editorsDoc]) => {
+    const youthLeaders = (youthDoc.exists && Array.isArray(youthDoc.data().leader)) ? youthDoc.data().leader : [];
+    const adminEmails = (adminsDoc.exists && Array.isArray(adminsDoc.data().emails)) ? adminsDoc.data().emails : [];
+    const existing = editorsDoc.exists ? editorsDoc.data() : {};
+    const mergedList = Array.from(new Set([...(existing.editorList || []), ...youthLeaders]));
+    const mergedEmails = Array.from(new Set([...(existing.webAdminEmails || []), ...adminEmails]));
+
+    return db.collection('info').doc('editors').set({
+      editorList: mergedList,
+      webAdminEmails: mergedEmails,
+      editors: existing.editors || {},
+      lineUserIdToName: existing.lineUserIdToName || {},
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+  }).catch(err => console.warn("同步 info/editors 編輯人員名單略過:", err));
+}
+
 function able() {
   getDate('青年部');
   remove();
@@ -109,6 +139,7 @@ function able() {
   if (btnUpload) {
     btnUpload.setAttribute('onclick', 'get_date()');
   }
+  syncEditorsRegistry();
   db.collection('info').doc('set').update({
     login: true,
   }).catch(err => console.warn("Failed to update global login status:", err));
@@ -627,6 +658,7 @@ function add(join) {
     note = note.replace('世話人', '').trim();
   }
 
+  const editorLabel = getCurrentEditorLabel();
   db.collection('member')
     .doc(join)
     .set({
@@ -642,7 +674,10 @@ function add(join) {
       post: post,
       connect: cont,
       part: '青年部',
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      createdBy: editorLabel,
+      lastEditor: editorLabel,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     })
     .then(() => {
       alert('成員「' + name + '」資料新增成功！');
@@ -719,6 +754,7 @@ function set_up(o) {
     note = note.replace('世話人', '').trim();
   }
 
+  const editorLabel = getCurrentEditorLabel();
   db.collection('member')
     .doc(o)
     .update({
@@ -731,6 +767,8 @@ function set_up(o) {
       part: part,
       post: post,
       connect: cont,
+      lastEditor: editorLabel,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     })
     .then(() => {
       alert('資料更新成功！');

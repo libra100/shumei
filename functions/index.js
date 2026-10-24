@@ -80,12 +80,14 @@ exports.processLineEvent = onMessagePublished(
     const isTagged = lowerMessage.includes("@shumei helper");
 
     // 關鍵字判斷
+    const isEditorAuthCmd = /^(?:幹部認證|綁定幹部|編輯認證)\s+(\S+)\s+(.+)$/.test(userMessage.trim());
+    const isEditorListCmd = /^(?:編輯人員名單|幹部名單|查看編輯人員)$/.test(userMessage.trim());
     const isJyoreiKeyword = /淨靈|施光|御光|jyorei/i.test(userMessage);
     const isLineageKeyword = /介紹人|世話人|組長|下線|靈線|電話|住址|地址/.test(userMessage);
     const isSeminarKeyword = /登記|紀錄|座談|回報/.test(userMessage);
 
     // 個人對話 (1對1) 或圖片一律處理；群組或聊天室則需標記機器人或命中關鍵字
-    const isForBot = isPrivateChat || isTagged || isStats || isJyoreiKeyword || isLineageKeyword || isSeminarKeyword || isImage;
+    const isForBot = isPrivateChat || isTagged || isStats || isEditorAuthCmd || isEditorListCmd || isJyoreiKeyword || isLineageKeyword || isSeminarKeyword || isImage;
 
     if (!isForBot) {
       return; // 忽略群組中的一般閒聊，不回覆且不呼叫 AI
@@ -106,11 +108,155 @@ exports.processLineEvent = onMessagePublished(
     const model = genAI.getGenerativeModel({ model: "gemini-3.8-flash" });
     const nowStr = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false });
 
+    // 輔助函式：檢查發話者是否為已認證的幹部/編輯人員 (對應 Firestore info/editors)
+    async function checkEditorPermission(lineUid) {
+      if (!lineUid) return { isEditor: false, editorName: null };
+      try {
+        const editorsDoc = await db.collection("info").doc("editors").get();
+        if (!editorsDoc.exists) return { isEditor: false, editorName: null };
+        const data = editorsDoc.data() || {};
+        const lineMap = data.lineUserIdToName || {};
+        const matchedName = lineMap[lineUid];
+        if (matchedName) {
+          const editorDetail = (data.editors && data.editors[matchedName]) || {};
+          if (editorDetail.active !== false) {
+            return { isEditor: true, editorName: matchedName };
+          }
+        }
+        return { isEditor: false, editorName: null };
+      } catch (e) {
+        logger.error("Error checking editor permission", e);
+        return { isEditor: false, editorName: null };
+      }
+    }
+
+    // ==========================================
+    // 功能零：LINE 幹部認證與編輯人員名單管理 (對應 info/editors)
+    // ==========================================
+    if (isEditorAuthCmd) {
+      if (!isPrivateChat) {
+        await client.replyMessage({
+          replyToken,
+          messages: [{ type: "text", text: "🔒 為避免密碼外洩，請在與我的「1 對 1 私聊」中輸入幹部認證指令喔！" }]
+        });
+        return;
+      }
+
+      try {
+        const match = userMessage.trim().match(/^(?:幹部認證|綁定幹部|編輯認證)\s+(\S+)\s+(.+)$/);
+        const inputPass = match[1].trim();
+        const inputName = match[2].trim();
+
+        const [setDoc, youthDoc, editorsDoc] = await Promise.all([
+          db.collection("info").doc("set").get(),
+          db.collection("info").doc("youth").get(),
+          db.collection("info").doc("editors").get()
+        ]);
+
+        const validPass = (setDoc.exists && setDoc.data().pass) ? String(setDoc.data().pass) : "shumei567sty";
+        if (inputPass !== validPass) {
+          await client.replyMessage({
+            replyToken,
+            messages: [{ type: "text", text: "❌ 認證密碼錯誤，請確認幹部查詢密碼後重試。" }]
+          });
+          return;
+        }
+
+        const youthLeaders = (youthDoc.exists && Array.isArray(youthDoc.data().leader)) ? youthDoc.data().leader : [];
+        const existingEditorsData = editorsDoc.exists ? editorsDoc.data() : {};
+        const currentEditorList = Array.isArray(existingEditorsData.editorList)
+          ? existingEditorsData.editorList
+          : [...youthLeaders];
+
+        // 將新認證的幹部加入明確可見的編輯人員名單中
+        if (!currentEditorList.includes(inputName)) {
+          currentEditorList.push(inputName);
+        }
+
+        const updatedEditorsMap = existingEditorsData.editors || {};
+        updatedEditorsMap[inputName] = {
+          name: inputName,
+          lineDisplayName: userName,
+          lineUserId: userId,
+          role: "幹部/編輯人員",
+          active: true,
+          verifiedAt: nowStr
+        };
+
+        const updatedLineMap = existingEditorsData.lineUserIdToName || {};
+        updatedLineMap[userId] = inputName;
+
+        await db.collection("info").doc("editors").set({
+          editorList: currentEditorList,
+          editors: updatedEditorsMap,
+          lineUserIdToName: updatedLineMap,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+
+        await client.replyMessage({
+          replyToken,
+          messages: [{
+            type: "text",
+            text: `🎉 幹部身分認證成功！\n\n👤 編輯人員姓名：${inputName}\n📱 LINE 暱稱：${userName}\n🔑 權限狀態：已啟用\n\n您已正式登錄至資料庫 [info/editors] 編輯人員名單中，現在可以直接拍照上傳入信願書或私聊查詢成員聯絡資訊！`
+          }]
+        });
+        return;
+      } catch (err) {
+        logger.error("Error in editor authentication", err);
+        await client.replyMessage({
+          replyToken,
+          messages: [{ type: "text", text: "認證過程發生錯誤，請稍後再試。" }]
+        });
+        return;
+      }
+    }
+
+    if (isEditorListCmd && isPrivateChat) {
+      const authStatus = await checkEditorPermission(userId);
+      if (!authStatus.isEditor) {
+        await client.replyMessage({
+          replyToken,
+          messages: [{ type: "text", text: "🔒 您尚未綁定幹部身分。\n請輸入：「幹部認證 [密碼] [您的姓名]」完成認證。" }]
+        });
+        return;
+      }
+      const editorsDoc = await db.collection("info").doc("editors").get();
+      const data = editorsDoc.exists ? editorsDoc.data() : {};
+      const list = data.editorList || [];
+      const editorsMap = data.editors || {};
+      const lines = list.map((name, idx) => {
+        const info = editorsMap[name];
+        const status = (info && info.lineUserId && info.active !== false) ? `✅ 已綁定 LINE (${info.lineDisplayName})` : "⏳ 尚未綁定 LINE";
+        return `${idx + 1}. ${name} — ${status}`;
+      });
+      await client.replyMessage({
+        replyToken,
+        messages: [{
+          type: "text",
+          text: `📋【資料庫授權編輯人員名單】\n(對應位置：info/editors)\n\n${lines.join("\n") || "尚無名單"}`
+        }]
+      });
+      return;
+    }
+
     // ==========================================
     // 功能一：紙本「入信願書」拍照 OCR 自動建檔
     // ==========================================
     if (isImage) {
       try {
+        const authStatus = await checkEditorPermission(userId);
+        // 若在 1 對 1 私聊傳圖片，驗證是否為已認證編輯人員
+        if (isPrivateChat && !authStatus.isEditor) {
+          await client.replyMessage({
+            replyToken,
+            messages: [{
+              type: "text",
+              text: "🔒 權限不足：拍照上傳「入信願書」新增成員僅限授權編輯人員操作。\n\n若您是幹部，請先輸入指令完成認證：\n幹部認證 [密碼] [您的姓名]\n（例如：幹部認證 shumei567sty 松恩）"
+            }]
+          });
+          return;
+        }
+        const editorLabel = authStatus.editorName ? `${authStatus.editorName} (LINE)` : `${userName} (LINE)`;
         const blobClient = new messagingApi.MessagingApiBlobClient({ channelAccessToken: lineChannelAccessToken.value() });
         const stream = await blobClient.getMessageContent(event.message.id);
         const chunks = [];
@@ -194,11 +340,14 @@ exports.processLineEvent = onMessagePublished(
             connect: true,
             part: "青年部",
             source: "line_ocr",
-            createdAt: admin.firestore.FieldValue.serverTimestamp()
+            createdBy: editorLabel,
+            lastEditor: editorLabel,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
           });
 
           const webUrl = "https://shumei-2025.web.app/youth/list.html?q=" + encodeURIComponent(parsedData.name);
-          const replyText = `🎉 收到入信願書！已成功為「${parsedData.name}」建立成員資料。\n\n📅 入信日期：${parsedData.joinDate} (編號: ${joinDateId})\n🎂 出生日期：${parsedData.born || "未註明"}\n🤝 介紹人：${guideList.join("、") || "無"}\n🌾 世話人：${parsedData.sewajin || "無"}\n📞 電話：${parsedData.phone || parsedData.tel || "未註明"}\n🏠 地址：${parsedData.adress || "未註明"}\n\n🔗 點此查看青年部名冊：\n${webUrl}`;
+          const replyText = `🎉 收到入信願書！已成功為「${parsedData.name}」建立成員資料。\n\n📅 入信日期：${parsedData.joinDate} (編號: ${joinDateId})\n🎂 出生日期：${parsedData.born || "未註明"}\n🤝 介紹人：${guideList.join("、") || "無"}\n🌾 世話人：${parsedData.sewajin || "無"}\n📞 電話：${parsedData.phone || parsedData.tel || "未註明"}\n🏠 地址：${parsedData.adress || "未註明"}\n✍️ 建檔人員：${editorLabel}\n\n🔗 點此查看青年部名冊：\n${webUrl}`;
 
           await client.replyMessage({
             replyToken,
@@ -373,13 +522,28 @@ exports.processLineEvent = onMessagePublished(
         if (parsedQuery.intent !== "other" && parsedQuery.targetMemberName) {
           const targetName = parsedQuery.targetMemberName.trim();
 
-          // 隱私防護規則：群組中禁止公開回覆電話與地址
-          if (parsedQuery.intent === "contact_query" && !isPrivateChat) {
-            await client.replyMessage({
-              replyToken,
-              messages: [{ type: "text", text: `🔒 為保護個人隱私，查詢「${targetName}」的電話與通訊地址，請在 1 對 1 私聊向我查詢喔！` }]
-            });
-            return;
+          // 隱私與幹部權限防護規則：
+          // 1. 群組中禁止公開回覆電話與地址
+          // 2. 1對1私聊必須通過「幹部認證」在 [info/editors] 名單內才可查詢
+          if (parsedQuery.intent === "contact_query") {
+            if (!isPrivateChat) {
+              await client.replyMessage({
+                replyToken,
+                messages: [{ type: "text", text: `🔒 為保護個人隱私，查詢「${targetName}」的電話與通訊地址，請在 1 對 1 私聊向我查詢喔！` }]
+              });
+              return;
+            }
+            const authStatus = await checkEditorPermission(userId);
+            if (!authStatus.isEditor) {
+              await client.replyMessage({
+                replyToken,
+                messages: [{
+                  type: "text",
+                  text: "🔒 權限不足：成員電話與地址僅限「已認證幹部/編輯人員」查詢。\n\n若您是幹部，請先輸入指令完成認證：\n幹部認證 [密碼] [您的姓名]\n（例如：幹部認證 shumei567sty 松恩）"
+                }]
+              });
+              return;
+            }
           }
 
           // 查詢 Firestore member
