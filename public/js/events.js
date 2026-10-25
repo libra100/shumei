@@ -21,7 +21,31 @@ let qrScanner = null;
 document.addEventListener('DOMContentLoaded', () => {
   loadEventsData();
   loadRegistrationsData();
+  loadCadresForEventPublish();
 });
+
+// 載入幹部清單供活動負責人欄位選擇
+function loadCadresForEventPublish() {
+  const datalist = document.getElementById('cadres-datalist');
+  if (!datalist) return;
+
+  Promise.all([
+    db.collection('info').doc('editors').get().catch(() => null),
+    db.collection('info').doc('youth').get().catch(() => null)
+  ]).then(([editorsDoc, youthDoc]) => {
+    const cadreNames = new Set();
+    if (editorsDoc && editorsDoc.exists) {
+      const data = editorsDoc.data() || {};
+      (data.editorList || []).forEach(name => cadreNames.add(name));
+      Object.keys(data.editors || {}).forEach(name => cadreNames.add(name));
+    }
+    if (youthDoc && youthDoc.exists) {
+      const leaders = youthDoc.data().leader || [];
+      leaders.forEach(name => cadreNames.add(name));
+    }
+    datalist.innerHTML = Array.from(cadreNames).map(n => `<option value="${n}">${n}</option>`).join('');
+  }).catch(err => console.warn("Failed to load cadres for event publish:", err));
+}
 
 // 載入活動資料
 function loadEventsData() {
@@ -120,6 +144,10 @@ function renderEvents() {
               <a href="${mapsUrl}" target="_blank" class="text-decoration-none text-info" title="在 Google 地圖開啟">
                 <i class="fa-solid fa-location-dot me-1 text-danger"></i>${evt.location}
               </a>
+            </div>
+
+            <div class="small text-info mb-1" style="font-size: 11px;">
+              <i class="fa-solid fa-user-tie me-1"></i>負責人：<strong class="text-white">${evt.responsiblePerson || evt.leader || evt.inCharge || evt['負責人'] || '尚未指定'}</strong>
             </div>
 
             <div class="small text-muted mb-2" style="font-size: 11px;">
@@ -240,6 +268,8 @@ function openPublishModal() {
   document.getElementById('pub-start-time').value = '';
   document.getElementById('pub-capacity').value = '30';
   document.getElementById('pub-location').value = '';
+  const respEl = document.getElementById('pub-responsible');
+  if (respEl) respEl.value = '';
   document.getElementById('pub-fee').value = '免費參加';
   document.getElementById('pub-auth-pwd').value = '';
   document.getElementById('pub-desc').value = '';
@@ -259,6 +289,7 @@ function submitPublishEvent() {
   const startTime = document.getElementById('pub-start-time').value;
   const capacity = parseInt(document.getElementById('pub-capacity').value) || 0;
   const location = document.getElementById('pub-location').value.trim();
+  const responsiblePerson = (document.getElementById('pub-responsible')?.value || '').trim();
   const fee = document.getElementById('pub-fee').value.trim();
   const desc = document.getElementById('pub-desc').value.trim();
 
@@ -277,6 +308,8 @@ function submitPublishEvent() {
     location: location,
     fee: fee,
     desc: desc,
+    responsiblePerson: responsiblePerson,
+    remindersSent: [],
     status: 'open',
     createdAt: new Date().toISOString()
   };
@@ -284,13 +317,17 @@ function submitPublishEvent() {
   allEvents.unshift(newEvent);
   localStorage.setItem('SHUMEI_ACTIVITIES_EVENTS', JSON.stringify(allEvents));
 
+  // 寫入 activities_events 與 events 集合確保雲端排程通知即時比對
   db.collection('activities_events').doc(newEvent.id).set(newEvent).catch(err => {
-    console.warn("Firestore publish warning:", err);
+    console.warn("Firestore publish activities_events warning:", err);
+  });
+  db.collection('events').doc(newEvent.id).set(newEvent).catch(err => {
+    console.warn("Firestore publish events warning:", err);
   });
 
   bootstrap.Modal.getInstance(document.getElementById('publishModal')).hide();
   renderEvents();
-  alert(`🎉 活動「${title}」已成功公開發布！`);
+  alert(`🎉 活動「${title}」已成功公開發布！${responsiblePerson ? `\n👤 指定負責人：${responsiblePerson}` : ''}`);
 }
 
 // ================= 現場相機 QR Code 簽到掃描器 =================

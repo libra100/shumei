@@ -319,10 +319,15 @@
               <input type="text" id="pub-location" class="form-control bg-dark text-white border-secondary" placeholder="如：神慈秀明會 台中會館 (台中市南區復興路三段...)" required>
             </div>
             <div class="col-12 col-md-6">
+              <label class="form-label text-light small"><i class="fa-solid fa-user-tie text-info me-1"></i>活動指定負責人 (幹部)</label>
+              <input type="text" id="pub-responsible" list="cadres-datalist" class="form-control bg-dark text-white border-secondary" placeholder="請填寫或選擇負責人姓名 (如：松恩)">
+              <datalist id="cadres-datalist"></datalist>
+            </div>
+            <div class="col-12 col-md-6">
               <label class="form-label text-light small">活動費用說明</label>
               <input type="text" id="pub-fee" class="form-control bg-dark text-white border-secondary" value="免費參加 (隨喜供奉)">
             </div>
-            <div class="col-12 col-md-6">
+            <div class="col-12">
               <label class="form-label text-light small">幹部授權密碼 (預設: 1234)</label>
               <input type="password" id="pub-auth-pwd" class="form-control bg-dark text-white border-secondary" placeholder="輸入幹部密碼">
             </div>

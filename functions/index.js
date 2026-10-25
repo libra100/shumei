@@ -1,11 +1,23 @@
 const { onRequest } = require("firebase-functions/v2/https");
 const { onMessagePublished } = require("firebase-functions/v2/pubsub");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { defineSecret } = require("firebase-functions/params");
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
 const { messagingApi } = require("@line/bot-sdk");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { PubSub } = require("@google-cloud/pubsub");
+const {
+  getTaipeiDate,
+  getNextMonthInfo,
+  sendMonthlyPlanningReminder,
+  sendUpcomingActivityReminders,
+  getAllEventsFromDatabase,
+  parseEventDateTime,
+  extractResponsiblePersons,
+  matchEditorLineUser,
+  getDaysUntilEvent
+} = require("./activityReminders");
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -85,9 +97,10 @@ exports.processLineEvent = onMessagePublished(
     const isJyoreiKeyword = /淨靈|施光|御光|jyorei/i.test(userMessage);
     const isLineageKeyword = /介紹人|世話人|組長|下線|靈線|電話|住址|地址/.test(userMessage);
     const isSeminarKeyword = /登記|紀錄|座談|回報/.test(userMessage);
+    const isActivityCmd = /^(?:活動|活動查詢|查詢活動|近期活動|活動日程|本月活動|下月活動|活動清單|活動負責人)$/.test(userMessage.trim()) || userMessage.includes("近期活動") || userMessage.includes("活動日程") || userMessage.includes("活動負責人") || (isPrivateChat && userMessage.trim() === "活動");
 
     // 個人對話 (1對1) 或圖片一律處理；群組或聊天室則需標記機器人或命中關鍵字
-    const isForBot = isPrivateChat || isTagged || isStats || isEditorAuthCmd || isEditorListCmd || isJyoreiKeyword || isLineageKeyword || isSeminarKeyword || isImage;
+    const isForBot = isPrivateChat || isTagged || isStats || isEditorAuthCmd || isEditorListCmd || isJyoreiKeyword || isLineageKeyword || isSeminarKeyword || isActivityCmd || isImage;
 
     if (!isForBot) {
       return; // 忽略群組中的一般閒聊，不回覆且不呼叫 AI
@@ -737,6 +750,85 @@ exports.processLineEvent = onMessagePublished(
     }
 
     // ==========================================
+    // 功能四點五：近期活動與活動負責人快查
+    // ==========================================
+    if (isActivityCmd) {
+      try {
+        const [eventsList, editorsDoc] = await Promise.all([
+          getAllEventsFromDatabase(db, logger),
+          db.collection("info").doc("editors").get().catch(() => null)
+        ]);
+
+        const editorsData = editorsDoc && editorsDoc.exists ? editorsDoc.data() : {};
+        const editorsMap = editorsData.editors || {};
+        const todayTaipei = getTaipeiDate();
+
+        // 篩選從今天開始未來的活動 (包含今天)
+        const upcoming = [];
+        for (const item of eventsList) {
+          const evt = item.data;
+          const parsed = parseEventDateTime(evt);
+          if (!parsed) continue;
+          const diffDays = getDaysUntilEvent(parsed, todayTaipei);
+          if (diffDays >= 0) {
+            const leaders = extractResponsiblePersons(evt);
+            const leaderStatuses = leaders.map(name => {
+              const match = matchEditorLineUser(name, editorsMap, editorsData.lineUserIdToName);
+              return match.isBound ? `✅ ${name} (已綁定 LINE)` : `⏳ ${name} (尚未綁定 LINE)`;
+            });
+
+            upcoming.push({
+              title: evt.title || "未命名活動",
+              category: evt.category || "活動",
+              location: evt.location || "神慈秀明會",
+              displayDate: parsed.displayStr,
+              diffDays,
+              registeredCount: evt.registeredCount || 0,
+              leadersStr: leaderStatuses.length > 0 ? leaderStatuses.join("、") : "⚠️ 尚未指定負責人"
+            });
+          }
+        }
+
+        // 依日期先後排序
+        upcoming.sort((a, b) => a.diffDays - b.diffDays);
+
+        if (upcoming.length === 0) {
+          await client.replyMessage({
+            replyToken,
+            messages: [{
+              type: "text",
+              text: `📅【秀明近期活動日程】\n\n目前系統中尚無近期公開活動排程。\n可至活動系統發布新活動並指定負責人：\nhttps://shumei-2025.web.app/activities/events.html`
+            }]
+          });
+          return;
+        }
+
+        let replyLines = `📅【秀明近期活動與負責人日程表】\n\n`;
+        upcoming.slice(0, 8).forEach((act, idx) => {
+          let timingTag = act.diffDays === 0 ? "🔥【今天】" : (act.diffDays === 1 ? "⚡【明天】" : (act.diffDays === 2 ? "⏳【後天】" : `(${act.diffDays}天後)`));
+          replyLines += `${idx + 1}. ${act.title} ${timingTag}\n`;
+          replyLines += `   📅 時間：${act.displayDate}\n`;
+          replyLines += `   📍 地點：${act.location}\n`;
+          replyLines += `   👤 負責人：${act.leadersStr}\n`;
+          replyLines += `   👥 報名：${act.registeredCount} 人\n\n`;
+        });
+
+        replyLines += `🔗 查看完整活動清單或發布新活動：\nhttps://shumei-2025.web.app/activities/events.html`;
+
+        await client.replyMessage({
+          replyToken,
+          messages: [{
+            type: "text",
+            text: replyLines.trim()
+          }]
+        });
+        return;
+      } catch (err) {
+        logger.error("Error handling activity query command:", err);
+      }
+    }
+
+    // ==========================================
     // 功能五：座談會登記與一般問答 (原既有功能)
     // ==========================================
     try {
@@ -815,7 +907,7 @@ exports.processLineEvent = onMessagePublished(
         if (parsedData.reply && (isPrivateChat || isTagged)) {
           replyText = parsedData.reply;
         } else if (isPrivateChat || isTagged) {
-          replyText = "您好！我是秀明青年小助理～\n您可以透過我完成以下功能：\n1. 📷 拍照上傳「入信願書」自動建檔\n2. 🙏 傳送「今天施光2次信徒」登記淨靈人次或「淨靈統計」\n3. 🌿 詢問成員靈線、介紹人或私訊查詢電話地址\n4. 🍑 紀錄座談會或查詢當月座談統計！";
+          replyText = "您好！我是秀明青年小助理～\n您可以透過我完成以下功能：\n1. 📅 查詢「近期活動」與「活動負責人」\n2. 📷 拍照上傳「入信願書」自動建檔\n3. 🙏 傳送「今天施光2次信徒」登記淨靈人次或「淨靈統計」\n4. 🌿 詢問成員靈線、介紹人或私訊查詢電話地址\n5. 🍑 紀錄座談會或查詢當月座談統計！";
         }
       }
 
@@ -837,3 +929,158 @@ exports.processLineEvent = onMessagePublished(
     }
   }
 );
+
+// ==========================================
+// 6. 排程功能：每個月 26 日活動規劃與設定負責人提醒 (Monthly Planning Reminder)
+// ==========================================
+exports.monthlyActivityPlanningReminder = onSchedule(
+  {
+    schedule: "0 9 26 * *",
+    timeZone: "Asia/Taipei",
+    region: "asia-east1",
+    secrets: [lineChannelSecret, lineChannelAccessToken]
+  },
+  async (event) => {
+    logger.info("Executing monthlyActivityPlanningReminder on the 26th at 09:00 Taipei time...");
+    let client = null;
+    try {
+      client = new messagingApi.MessagingApiClient({
+        channelAccessToken: lineChannelAccessToken.value()
+      });
+    } catch (e) {
+      logger.error("Failed to initialize LINE client with secret for monthly reminder:", e);
+      return;
+    }
+
+    try {
+      const summary = await sendMonthlyPlanningReminder({
+        db,
+        client,
+        dryRun: false,
+        logger
+      });
+      logger.info("monthlyActivityPlanningReminder completed successfully:", summary);
+    } catch (err) {
+      logger.error("Error executing monthlyActivityPlanningReminder:", err);
+    }
+  }
+);
+
+// ==========================================
+// 7. 排程功能：每日活動到期自動跳出通知提醒負責人 (Upcoming Activity Notification)
+// ==========================================
+exports.dailyActivityReminder = onSchedule(
+  {
+    schedule: "30 8 * * *",
+    timeZone: "Asia/Taipei",
+    region: "asia-east1",
+    secrets: [lineChannelSecret, lineChannelAccessToken]
+  },
+  async (event) => {
+    logger.info("Executing dailyActivityReminder daily at 08:30 Taipei time...");
+    let client = null;
+    try {
+      client = new messagingApi.MessagingApiClient({
+        channelAccessToken: lineChannelAccessToken.value()
+      });
+    } catch (e) {
+      logger.error("Failed to initialize LINE client with secret for daily reminder:", e);
+      return;
+    }
+
+    try {
+      const summary = await sendUpcomingActivityReminders({
+        db,
+        client,
+        dryRun: false,
+        logger
+      });
+      logger.info("dailyActivityReminder completed successfully:", summary);
+    } catch (err) {
+      logger.error("Error executing dailyActivityReminder:", err);
+    }
+  }
+);
+
+// ==========================================
+// 8. 測試與手動觸發端點：活動通知測試與驗證 (HTTP Test Trigger)
+// ==========================================
+exports.testActivityNotifications = onRequest(
+  {
+    region: "asia-east1",
+    secrets: [lineChannelSecret, lineChannelAccessToken]
+  },
+  async (req, res) => {
+    // 支援 GET 與 POST 參數
+    const params = req.method === "POST" ? req.body : req.query;
+    const type = params.type || "all";
+    const forceDate = params.forceDate || null;
+    // 安全防護：預設為 dryRun=true，除非明確認證 dryRun=false
+    const isDryRun = params.dryRun === "false" || params.dryRun === false ? false : true;
+
+    logger.info(`testActivityNotifications invoked. type=${type}, dryRun=${isDryRun}, forceDate=${forceDate}`);
+
+    let client = null;
+    try {
+      client = new messagingApi.MessagingApiClient({
+        channelAccessToken: lineChannelAccessToken.value()
+      });
+    } catch (e) {
+      logger.warn("Could not retrieve lineChannelAccessToken from secret manager:", e.message || e);
+      client = new messagingApi.MessagingApiClient({
+        channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || "dummy-token-for-dry-run"
+      });
+    }
+
+    const executionResults = {};
+    try {
+      if (type === "monthly" || type === "monthly_planning") {
+        executionResults.monthly = await sendMonthlyPlanningReminder({
+          db,
+          client,
+          dryRun: isDryRun,
+          forceDate,
+          logger
+        });
+      } else if (type === "daily" || type === "upcoming_activities") {
+        executionResults.upcoming = await sendUpcomingActivityReminders({
+          db,
+          client,
+          dryRun: isDryRun,
+          forceDate,
+          logger
+        });
+      } else {
+        // 預設執行兩者
+        executionResults.monthly = await sendMonthlyPlanningReminder({
+          db,
+          client,
+          dryRun: isDryRun,
+          forceDate,
+          logger
+        });
+        executionResults.upcoming = await sendUpcomingActivityReminders({
+          db,
+          client,
+          dryRun: isDryRun,
+          forceDate,
+          logger
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        dryRun: isDryRun,
+        message: isDryRun ? "Simulation completed successfully (dryRun=true, no actual LINE push sent)" : "Notifications sent successfully via LINE",
+        results: executionResults
+      });
+    } catch (err) {
+      logger.error("Error in testActivityNotifications:", err);
+      res.status(500).json({
+        success: false,
+        error: err.message || String(err)
+      });
+    }
+  }
+);
+

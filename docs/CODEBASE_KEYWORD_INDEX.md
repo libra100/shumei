@@ -222,12 +222,16 @@
 ---
 
 ## 14. LINE Bot 與 Gemini OCR 後端 (Cloud Functions & AI)
-*   **功能描述**：LINE 官方帳號 Webhook、入信願書紙本拍照 OCR 自動轉文字、Gemini 視覺模型辨識、自動建檔匯入、LINE 幹部身份綁定與系譜查詢。
-*   **搜尋關鍵字**：`LINE Bot`, `lineWebhook`, `processLineEvent`, `入信願書`, `OCR`, `Gemini`, `processImageOcr`
-*   **後端入口**：`functions/index.js`
+*   **功能描述**：LINE 官方帳號 Webhook、入信願書紙本拍照 OCR 自動轉文字、Gemini 視覺模型辨識、自動建檔匯入、LINE 幹部身份綁定與系譜查詢，以及**每月 26 日活動規劃排程提醒**與**活動到期前自動推播提醒負責人**機制。
+*   **搜尋關鍵字**：`LINE Bot`, `lineWebhook`, `processLineEvent`, `monthlyActivityPlanningReminder`, `dailyActivityReminder`, `testActivityNotifications`, `activityReminders.js`, `入信願書`, `OCR`, `Gemini`, `processImageOcr`
+*   **後端入口**：`functions/index.js`, `functions/activityReminders.js`
 *   **核心函式 / 符號**：
     *   `exports.lineWebhook`: HTTP 觸發點，接收 LINE Webhook 並快速發布 Pub/Sub
-    *   `exports.processLineEvent`: Pub/Sub 非同步處理函式，調用 Gemini API 處理文字問答與圖片 OCR
+    *   `exports.processLineEvent`: Pub/Sub 非同步處理函式，調用 Gemini API 處理文字問答、圖片 OCR 與活動日程查詢
+    *   `exports.monthlyActivityPlanningReminder`: 每月 26 日 09:00 (Asia/Taipei) 自動發送 LINE 提醒幹部規劃下月活動與指定負責人
+    *   `exports.dailyActivityReminder`: 每日 08:30 (Asia/Taipei) 自動巡檢即將到來之活動，並向綁定 LINE 之指定負責人推播提醒通知
+    *   `exports.testActivityNotifications`: HTTP 測試端點，支援以 dryRun 模擬測試各類活動提醒推播
+    *   `sendMonthlyPlanningReminder()` / `sendUpcomingActivityReminders()`: 排程推播與去重、跨集合同步核心邏輯
     *   `processImageOcr()`: 入信願書紙本圖片解析提取姓名、入信日、世話人與地址
 *   **環境變數與密鑰**：
     *   `LINE_CHANNEL_SECRET`, `LINE_CHANNEL_ACCESS_TOKEN`, `GEMINI_API_KEY`
