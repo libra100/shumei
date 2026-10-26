@@ -177,27 +177,80 @@ exports.processLineEvent = onMessagePublished(
 
         const youthLeaders = (youthDoc.exists && Array.isArray(youthDoc.data().leader)) ? youthDoc.data().leader : [];
         const existingEditorsData = editorsDoc.exists ? editorsDoc.data() : {};
-        const currentEditorList = Array.isArray(existingEditorsData.editorList)
-          ? existingEditorsData.editorList
+        let currentEditorList = Array.isArray(existingEditorsData.editorList)
+          ? [...existingEditorsData.editorList]
           : [...youthLeaders];
+        const updatedEditorsMap = existingEditorsData.editors || {};
+        const updatedLineMap = existingEditorsData.lineUserIdToName || {};
 
-        // 將新認證的幹部加入明確可見的編輯人員名單中
-        if (!currentEditorList.includes(inputName)) {
-          currentEditorList.push(inputName);
+        // 智慧比對既有幹部 (支援全名與簡稱/別名雙向匹配，例如「蔡松恩」vs「松恩」、「官泰佑」vs「泰佑」)
+        let matchedTargetKey = null;
+        for (const key of Object.keys(updatedEditorsMap)) {
+          const item = updatedEditorsMap[key] || {};
+          const alias = (item.alias || '').trim();
+          const itemName = (item.name || key).trim();
+
+          if (key === inputName || itemName === inputName || (alias && alias === inputName)) {
+            matchedTargetKey = key;
+            break;
+          }
+          if (inputName.length >= 2 && (key.includes(inputName) || inputName.includes(key))) {
+            matchedTargetKey = key;
+            break;
+          }
         }
 
-        const updatedEditorsMap = existingEditorsData.editors || {};
-        updatedEditorsMap[inputName] = {
-          name: inputName,
+        if (!matchedTargetKey) {
+          for (const item of currentEditorList) {
+            if (item === inputName || (inputName.length >= 2 && (item.includes(inputName) || inputName.includes(item)))) {
+              matchedTargetKey = item;
+              break;
+            }
+          }
+        }
+
+        let finalNameKey = inputName;
+        let inheritedData = {};
+
+        if (matchedTargetKey) {
+          inheritedData = updatedEditorsMap[matchedTargetKey] || {};
+          // 若原先為短簡稱 (如「松恩」) 而輸入為長全名 (如「蔡松恩」)，升級為全名並記錄簡稱別名
+          if (inputName.length > matchedTargetKey.length) {
+            finalNameKey = inputName;
+            inheritedData.alias = matchedTargetKey;
+            delete updatedEditorsMap[matchedTargetKey];
+            currentEditorList = currentEditorList.map(n => n === matchedTargetKey ? finalNameKey : n);
+          } else {
+            finalNameKey = matchedTargetKey;
+            if (inputName !== finalNameKey && !inheritedData.alias) {
+              inheritedData.alias = inputName;
+            }
+          }
+        } else {
+          currentEditorList.push(finalNameKey);
+        }
+
+        currentEditorList = Array.from(new Set(currentEditorList));
+
+        // 整合職稱與組別資訊
+        const roleTitle = inheritedData.roleTitle || "小組長";
+        const group = inheritedData.group || (finalNameKey.includes("組") ? finalNameKey : `${inheritedData.alias || finalNameKey}組`);
+        const compositeRole = inheritedData.role || `${roleTitle} • ${group}`;
+
+        updatedEditorsMap[finalNameKey] = {
+          ...inheritedData,
+          name: finalNameKey,
           lineDisplayName: userName,
           lineUserId: userId,
-          role: "幹部/編輯人員",
+          role: compositeRole,
+          roleTitle: roleTitle,
+          group: group,
           active: true,
-          verifiedAt: nowStr
+          verifiedAt: nowStr,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
         };
 
-        const updatedLineMap = existingEditorsData.lineUserIdToName || {};
-        updatedLineMap[userId] = inputName;
+        updatedLineMap[userId] = finalNameKey;
 
         await db.collection("info").doc("editors").set({
           editorList: currentEditorList,
@@ -206,11 +259,12 @@ exports.processLineEvent = onMessagePublished(
           updatedAt: admin.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
 
+        const aliasHint = inheritedData.alias ? ` (簡稱/別名：${inheritedData.alias})` : "";
         await client.replyMessage({
           replyToken,
           messages: [{
             type: "text",
-            text: `🎉 幹部身分認證成功！\n\n👤 編輯人員姓名：${inputName}\n📱 LINE 暱稱：${userName}\n🔑 權限狀態：已啟用\n\n您已正式登錄至資料庫 [info/editors] 編輯人員名單中，現在可以直接拍照上傳入信願書或私聊查詢成員聯絡資訊！`
+            text: `🎉 幹部身分認證成功！\n\n👤 編輯人員姓名：${finalNameKey}${aliasHint}\n📱 LINE 暱稱：${userName}\n🏢 所屬組別：${group}\n🔑 權限狀態：已啟用\n\n您已正式登錄至資料庫 [info/editors] 幹部名冊中，現在可以直接拍照上傳入信願書或私聊查詢成員聯絡資訊！`
           }]
         });
         return;

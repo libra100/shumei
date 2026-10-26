@@ -256,17 +256,27 @@
             <div class="modal-body px-4 py-2">
               <input type="hidden" id="edit-original-name" value="">
 
-              <!-- 1. 資料庫姓名 -->
-              <div class="mb-3">
-                <label for="cadre-db-name" class="form-label small text-info fw-semibold">
-                  資料庫成員姓名 <span class="text-danger">*</span>
-                </label>
-                <input type="text" class="form-control bg-dark text-white border-secondary border-opacity-50" id="cadre-db-name" list="member-names-datalist" placeholder="輸入或從名冊挑選姓名" required autocomplete="off">
-                <datalist id="member-names-datalist">
-                  <!-- 動態載入既有名冊選項 -->
-                </datalist>
-                <div class="form-text text-muted" style="font-size: 11px;">
-                  此姓名需與青年名冊 `member` 文件中的「姓名」一致。
+              <!-- 1. 資料庫姓名與常用別名 -->
+              <div class="row g-2 mb-3">
+                <div class="col-7">
+                  <label for="cadre-db-name" class="form-label small text-info fw-semibold">
+                    資料庫成員姓名 <span class="text-danger">*</span>
+                  </label>
+                  <input type="text" class="form-control bg-dark text-white border-secondary border-opacity-50" id="cadre-db-name" list="member-names-datalist" placeholder="輸入或從名冊挑選姓名" required autocomplete="off">
+                  <datalist id="member-names-datalist">
+                    <!-- 動態載入既有名冊選項 -->
+                  </datalist>
+                </div>
+                <div class="col-5">
+                  <label for="cadre-alias" class="form-label small text-muted fw-semibold">
+                    常用簡稱 / 別名
+                  </label>
+                  <input type="text" class="form-control bg-dark text-white border-secondary border-opacity-50" id="cadre-alias" placeholder="例如：松恩">
+                </div>
+                <div class="col-12 mt-1">
+                  <div class="form-text text-muted" style="font-size: 11px;">
+                    <i class="fa-solid fa-link text-info me-1"></i>幹部在 LINE 輸入本名或簡稱認證，系統皆會智慧綁定至此同一人，避免名冊重複。
+                  </div>
                 </div>
               </div>
 

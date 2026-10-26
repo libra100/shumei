@@ -304,6 +304,7 @@ function renderCadres() {
 
     return {
       name: name,
+      alias: (item.alias || '').trim(),
       roleTitle: parsed.roleTitle,
       group: parsed.group,
       role: item.role || `${parsed.roleTitle} • ${parsed.group}`,
@@ -342,12 +343,13 @@ function renderCadres() {
 
     if (search) {
       const matchName = item.name.toLowerCase().includes(search);
+      const matchAlias = (item.alias || '').toLowerCase().includes(search);
       const matchLine = item.lineDisplayName.toLowerCase().includes(search);
       const matchRole = item.role.toLowerCase().includes(search);
       const matchTitle = (item.roleTitle || '').toLowerCase().includes(search);
       const matchGroup = (item.group || '').toLowerCase().includes(search);
       const matchUid = item.lineUserId.toLowerCase().includes(search);
-      return matchName || matchLine || matchRole || matchTitle || matchGroup || matchUid;
+      return matchName || matchAlias || matchLine || matchRole || matchTitle || matchGroup || matchUid;
     }
     return true;
   });
@@ -377,6 +379,10 @@ function renderCadres() {
       ? `<span class="badge bg-secondary ms-1">已暫停授權</span>`
       : '';
 
+    const aliasBadge = item.alias
+      ? `<span class="badge bg-black bg-opacity-40 border border-secondary border-opacity-50 text-muted px-2 py-1" style="font-size: 11px;"><i class="fa-solid fa-tag me-1"></i>簡稱：${escapeHtml(item.alias)}</span>`
+      : '';
+
     return `
       <div class="cadre-card">
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
@@ -387,6 +393,7 @@ function renderCadres() {
             <div>
               <div class="d-flex align-items-center gap-2 flex-wrap">
                 <span class="fs-5 fw-bold text-white">${escapeHtml(item.name)}</span>
+                ${aliasBadge}
                 <span class="badge bg-black bg-opacity-40 border border-info border-opacity-50 text-info px-2 py-1" style="font-size: 11px;">
                   <i class="fa-solid fa-user-tag me-1"></i>${escapeHtml(item.roleTitle)}
                 </span>
@@ -442,6 +449,8 @@ function openAddCadreModal() {
   document.getElementById('edit-original-name').value = '';
   document.getElementById('cadre-db-name').value = '';
   document.getElementById('cadre-db-name').disabled = false;
+  const aliasEl = document.getElementById('cadre-alias');
+  if (aliasEl) aliasEl.value = '';
   populateDropdownOptions(cadreConfig.roles[0], cadreConfig.groups[0]);
   document.getElementById('cadre-line-name').value = '';
   document.getElementById('cadre-line-uid').value = '';
@@ -464,6 +473,8 @@ function openEditCadreModal(name) {
   document.getElementById('edit-original-name').value = name;
   document.getElementById('cadre-db-name').value = name;
   document.getElementById('cadre-db-name').disabled = true; // 名稱不隨意修改，需改請刪除重加
+  const aliasEl = document.getElementById('cadre-alias');
+  if (aliasEl) aliasEl.value = item.alias || '';
   populateDropdownOptions(parsed.roleTitle, parsed.group);
   document.getElementById('cadre-line-name').value = item.lineDisplayName || '';
   document.getElementById('cadre-line-uid').value = item.lineUserId || '';
@@ -484,14 +495,15 @@ async function saveCadreMapping(event) {
 
   const originalName = document.getElementById('edit-original-name').value.trim();
   const dbName = document.getElementById('cadre-db-name').value.trim();
+  const alias = (document.getElementById('cadre-alias')?.value || '').trim();
   const titleSelect = document.getElementById('cadre-title-select');
   const groupSelect = document.getElementById('cadre-group-select');
   const roleTitle = (titleSelect ? titleSelect.value : '').trim() || '青年幹部';
   const group = (groupSelect ? groupSelect.value : '').trim() || '跨組 / 總會直屬';
   const compositeRole = `${roleTitle} • ${group}`;
 
-  const lineName = document.getElementById('cadre-line-name').value.trim();
-  const lineUid = document.getElementById('cadre-line-uid').value.trim();
+  let lineName = document.getElementById('cadre-line-name').value.trim();
+  let lineUid = document.getElementById('cadre-line-uid').value.trim();
   const active = document.getElementById('cadre-active-switch').checked;
 
   if (!dbName) {
@@ -524,9 +536,23 @@ async function saveCadreMapping(event) {
       delete lineMap[oldItem.lineUserId];
     }
 
+    // 若設定了簡稱 (如「松恩」)，且名冊中曾殘留該舊名稱，自動整合避免重複顯示
+    if (alias && alias !== dbName) {
+      if (editorsMap[alias]) {
+        const oldAliasItem = editorsMap[alias];
+        if (!lineUid && oldAliasItem.lineUserId) {
+          lineUid = oldAliasItem.lineUserId;
+          lineName = oldAliasItem.lineDisplayName || lineName;
+        }
+        delete editorsMap[alias];
+      }
+      editorList = editorList.filter(n => n !== alias);
+    }
+
     // 建立新項目
     editorsMap[dbName] = {
       name: dbName,
+      alias: alias,
       roleTitle: roleTitle,
       group: group,
       role: compositeRole, // 向下相容
