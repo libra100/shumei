@@ -800,9 +800,11 @@ exports.processLineEvent = onMessagePublished(
     }
 
     // ==========================================
-    // 功能四：座談會統計查詢 (原既有功能)
+    // 功能四：座談會統計與本月名單查詢
     // ==========================================
-    if (isStats) {
+    const isSeminarQuery = /座談.*(?:統計|本月|當月|這個?月|上個?月|下個?月|\d{1,2}月|名單|列表|紀錄|日程|行程|有哪些|總結)|(?:本月|當月|這個?月|上個?月|下個?月|\d{1,2}月).*座談|^(?:座談會|座談)$/.test(userMessage.trim()) || (isStats && !isJyoreiKeyword);
+
+    if (isSeminarQuery) {
       try {
         const snapshot = await db.collection("seminars").get();
         const seminars = [];
@@ -859,7 +861,7 @@ exports.processLineEvent = onMessagePublished(
         if (seminars.length === 0) {
           await client.replyMessage({
             replyToken: replyToken,
-            messages: [{ type: "text", text: targetMonth + "月目前沒有座談會紀錄喔！" }],
+            messages: [{ type: "text", text: `🍑【桃子座談會】\n\n${targetMonth}月目前尚無座談會登記紀錄喔！\n可至網站查看完整歷史紀錄：\nhttps://shumei-2025.web.app/seminar.html` }],
           });
           return;
         }
@@ -874,7 +876,7 @@ exports.processLineEvent = onMessagePublished(
           grouped[dateKey].push(sem);
         });
 
-        let replyText = "🍑桃子座談會" + targetMonth + "月\n";
+        let replyText = `🍑【桃子座談會 ${targetMonth}月】\n\n`;
         let count = 1;
         
         for (const dateKey of Object.keys(grouped)) {
@@ -888,7 +890,10 @@ exports.processLineEvent = onMessagePublished(
             replyText += count + "." + sem.memberName + attendeesStr + "\n";
             count++;
           });
+          replyText += "\n";
         }
+
+        replyText += `🔗 查看座談會詳細紀錄：\nhttps://shumei-2025.web.app/seminar.html`;
 
         await client.replyMessage({
           replyToken: replyToken,
