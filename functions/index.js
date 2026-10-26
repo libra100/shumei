@@ -71,9 +71,9 @@ exports.lineWebhook = onRequest(
 // Helper: 智慧 Gemini 呼叫器 (含多模型自動備援 Fallback 與重試)
 async function callGeminiSafe(genAI, promptOrParts, logger) {
   const modelsToTry = [
+    "gemini-3.5-flash-lite",
     "gemini-3.8-flash",
-    "gemini-2.5-flash",
-    "gemini-1.5-flash"
+    "gemini-2.5-flash"
   ];
   let lastError = null;
 
