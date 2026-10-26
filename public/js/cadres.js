@@ -12,7 +12,38 @@ firebase.initializeApp({
 const auth = firebase.auth();
 const db = firebase.firestore();
 
+// System Preset Dropdown Options (系統預設選單項目)
+const DEFAULT_CADRE_CONFIG = {
+  roles: [
+    "小組長",
+    "副組長",
+    "青年幹部",
+    "世話人 / 助教師",
+    "專案負責人",
+    "總會幹部"
+  ],
+  groups: [
+    "松恩組",
+    "泰佑組",
+    "惠婷組",
+    "家綺組",
+    "菱瞳組",
+    "和生組",
+    "宗珉組",
+    "懿翎組",
+    "大學生組",
+    "秀明自然農法 / 市集組",
+    "現場櫃檯 / 接待組",
+    "資訊 / 文宣影音組",
+    "跨組 / 總會直屬"
+  ]
+};
+
 // Global State
+let cadreConfig = {
+  roles: [...DEFAULT_CADRE_CONFIG.roles],
+  groups: [...DEFAULT_CADRE_CONFIG.groups]
+};
 let currentCadresData = {
   editorList: [],
   editors: {},
@@ -23,6 +54,7 @@ let cadrePass = 'shumei567sty';
 let currentFilter = 'all'; // 'all', 'bound', 'unbound'
 let cadreModalInstance = null;
 let lineGuideModalInstance = null;
+let cadreConfigModalInstance = null;
 
 // Auth Listener
 auth.onAuthStateChanged((user) => {
@@ -52,11 +84,107 @@ function initCadresPage() {
     if (editEl) cadreModalInstance = new bootstrap.Modal(editEl);
     const guideEl = document.getElementById('lineGuideModal');
     if (guideEl) lineGuideModalInstance = new bootstrap.Modal(guideEl);
+    const configEl = document.getElementById('cadreConfigModal');
+    if (configEl) cadreConfigModalInstance = new bootstrap.Modal(configEl);
   }
 
   loadSystemPassword();
   loadAllMemberNames();
+  listenToCadreConfig();
   listenToCadresData();
+}
+
+/**
+ * 即時監聽 info/cadre_config 自訂職稱與組別清單
+ */
+let unsubscribeConfig = null;
+function listenToCadreConfig() {
+  if (unsubscribeConfig) unsubscribeConfig();
+
+  unsubscribeConfig = db.collection('info').doc('cadre_config').onSnapshot((doc) => {
+    if (doc.exists) {
+      const data = doc.data();
+      const roles = (Array.isArray(data.roles) && data.roles.length > 0) ? data.roles : DEFAULT_CADRE_CONFIG.roles;
+      const groups = (Array.isArray(data.groups) && data.groups.length > 0) ? data.groups : DEFAULT_CADRE_CONFIG.groups;
+      cadreConfig = { roles, groups };
+    } else {
+      cadreConfig = {
+        roles: [...DEFAULT_CADRE_CONFIG.roles],
+        groups: [...DEFAULT_CADRE_CONFIG.groups]
+      };
+    }
+    populateDropdownOptions();
+    renderCadres();
+  }, (err) => {
+    console.warn("Failed to listen to cadre_config:", err);
+    cadreConfig = {
+      roles: [...DEFAULT_CADRE_CONFIG.roles],
+      groups: [...DEFAULT_CADRE_CONFIG.groups]
+    };
+    populateDropdownOptions();
+  });
+}
+
+/**
+ * 填充下拉選單選項
+ */
+function populateDropdownOptions(selectedTitle, selectedGroup) {
+  const titleSelect = document.getElementById('cadre-title-select');
+  const groupSelect = document.getElementById('cadre-group-select');
+
+  if (titleSelect) {
+    const currentVal = selectedTitle || titleSelect.value || cadreConfig.roles[0];
+    let roles = [...cadreConfig.roles];
+    if (currentVal && !roles.includes(currentVal)) {
+      roles.unshift(currentVal);
+    }
+    titleSelect.innerHTML = roles.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join('');
+    titleSelect.value = currentVal;
+  }
+
+  if (groupSelect) {
+    const currentVal = selectedGroup || groupSelect.value || cadreConfig.groups[0];
+    let groups = [...cadreConfig.groups];
+    if (currentVal && !groups.includes(currentVal)) {
+      groups.unshift(currentVal);
+    }
+    groupSelect.innerHTML = groups.map(g => `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join('');
+    groupSelect.value = currentVal;
+  }
+}
+
+/**
+ * 解析職稱與所屬組別 (向下相容歷史字串)
+ */
+function parseCadreRole(item) {
+  let roleTitle = (item.roleTitle || '').trim();
+  let group = (item.group || '').trim();
+
+  if (!roleTitle && !group && item.role) {
+    const rawRole = String(item.role).trim();
+    if (rawRole.includes('•')) {
+      const parts = rawRole.split('•').map(s => s.trim());
+      roleTitle = parts[0] || '';
+      group = parts[1] || '';
+    } else if (rawRole.includes(' / ')) {
+      const parts = rawRole.split(' / ').map(s => s.trim());
+      roleTitle = parts[0] || '';
+      group = parts[1] || '';
+    } else {
+      if (cadreConfig.groups.includes(rawRole)) {
+        roleTitle = '小組長';
+        group = rawRole;
+      } else {
+        roleTitle = rawRole;
+        group = '跨組 / 總會直屬';
+      }
+    }
+  }
+
+  if (!roleTitle) roleTitle = '青年幹部';
+  if (!group) group = '跨組 / 總會直屬';
+
+  return { roleTitle, group };
 }
 
 /**
@@ -165,6 +293,7 @@ function renderCadres() {
   const cadreItems = list.map((name) => {
     const item = editorsMap[name] || { name: name, role: "青年幹部", active: true };
     const isBound = Boolean(item.lineUserId && item.lineUserId.trim());
+    const parsed = parseCadreRole(item);
     
     totalCount++;
     if (isBound && item.active !== false) {
@@ -175,7 +304,9 @@ function renderCadres() {
 
     return {
       name: name,
-      role: item.role || "青年小組長",
+      roleTitle: parsed.roleTitle,
+      group: parsed.group,
+      role: item.role || `${parsed.roleTitle} • ${parsed.group}`,
       lineDisplayName: item.lineDisplayName || "",
       lineUserId: item.lineUserId || "",
       active: item.active !== false,
@@ -213,8 +344,10 @@ function renderCadres() {
       const matchName = item.name.toLowerCase().includes(search);
       const matchLine = item.lineDisplayName.toLowerCase().includes(search);
       const matchRole = item.role.toLowerCase().includes(search);
+      const matchTitle = (item.roleTitle || '').toLowerCase().includes(search);
+      const matchGroup = (item.group || '').toLowerCase().includes(search);
       const matchUid = item.lineUserId.toLowerCase().includes(search);
-      return matchName || matchLine || matchRole || matchUid;
+      return matchName || matchLine || matchRole || matchTitle || matchGroup || matchUid;
     }
     return true;
   });
@@ -254,8 +387,11 @@ function renderCadres() {
             <div>
               <div class="d-flex align-items-center gap-2 flex-wrap">
                 <span class="fs-5 fw-bold text-white">${escapeHtml(item.name)}</span>
-                <span class="badge bg-dark border border-secondary border-opacity-50 text-info px-2 py-1" style="font-size: 11px;">
-                  ${escapeHtml(item.role)}
+                <span class="badge bg-black bg-opacity-40 border border-info border-opacity-50 text-info px-2 py-1" style="font-size: 11px;">
+                  <i class="fa-solid fa-user-tag me-1"></i>${escapeHtml(item.roleTitle)}
+                </span>
+                <span class="badge bg-black bg-opacity-40 border border-secondary border-opacity-50 text-light px-2 py-1" style="font-size: 11px;">
+                  <i class="fa-solid fa-users me-1 text-muted"></i>${escapeHtml(item.group)}
                 </span>
                 ${activeBadge}
               </div>
@@ -306,7 +442,7 @@ function openAddCadreModal() {
   document.getElementById('edit-original-name').value = '';
   document.getElementById('cadre-db-name').value = '';
   document.getElementById('cadre-db-name').disabled = false;
-  document.getElementById('cadre-role').value = '青年小組長';
+  populateDropdownOptions(cadreConfig.roles[0], cadreConfig.groups[0]);
   document.getElementById('cadre-line-name').value = '';
   document.getElementById('cadre-line-uid').value = '';
   document.getElementById('cadre-active-switch').checked = true;
@@ -322,12 +458,13 @@ function openAddCadreModal() {
  * 彈窗操作：編輯幹部
  */
 function openEditCadreModal(name) {
-  const item = (currentCadresData.editors && currentCadresData.editors[name]) || { name: name, role: "青年小組長", active: true };
+  const item = (currentCadresData.editors && currentCadresData.editors[name]) || { name: name, role: "青年幹部", active: true };
+  const parsed = parseCadreRole(item);
   
   document.getElementById('edit-original-name').value = name;
   document.getElementById('cadre-db-name').value = name;
   document.getElementById('cadre-db-name').disabled = true; // 名稱不隨意修改，需改請刪除重加
-  document.getElementById('cadre-role').value = item.role || '青年小組長';
+  populateDropdownOptions(parsed.roleTitle, parsed.group);
   document.getElementById('cadre-line-name').value = item.lineDisplayName || '';
   document.getElementById('cadre-line-uid').value = item.lineUserId || '';
   document.getElementById('cadre-active-switch').checked = item.active !== false;
@@ -347,7 +484,12 @@ async function saveCadreMapping(event) {
 
   const originalName = document.getElementById('edit-original-name').value.trim();
   const dbName = document.getElementById('cadre-db-name').value.trim();
-  const role = document.getElementById('cadre-role').value.trim() || '青年幹部';
+  const titleSelect = document.getElementById('cadre-title-select');
+  const groupSelect = document.getElementById('cadre-group-select');
+  const roleTitle = (titleSelect ? titleSelect.value : '').trim() || '青年幹部';
+  const group = (groupSelect ? groupSelect.value : '').trim() || '跨組 / 總會直屬';
+  const compositeRole = `${roleTitle} • ${group}`;
+
   const lineName = document.getElementById('cadre-line-name').value.trim();
   const lineUid = document.getElementById('cadre-line-uid').value.trim();
   const active = document.getElementById('cadre-active-switch').checked;
@@ -385,7 +527,9 @@ async function saveCadreMapping(event) {
     // 建立新項目
     editorsMap[dbName] = {
       name: dbName,
-      role: role,
+      roleTitle: roleTitle,
+      group: group,
+      role: compositeRole, // 向下相容
       lineDisplayName: lineName,
       lineUserId: lineUid,
       active: active,
@@ -567,4 +711,98 @@ function escapeHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+
+/**
+ * 開啟自訂/微調職稱與組別選項對話框
+ */
+function openConfigModal() {
+  const rolesText = document.getElementById('config-roles-text');
+  const groupsText = document.getElementById('config-groups-text');
+
+  if (rolesText) rolesText.value = cadreConfig.roles.join('\n');
+  if (groupsText) groupsText.value = cadreConfig.groups.join('\n');
+
+  updateConfigCounts();
+  if (cadreConfigModalInstance) cadreConfigModalInstance.show();
+}
+
+/**
+ * 即時統計項目數量
+ */
+function updateConfigCounts() {
+  const rolesText = document.getElementById('config-roles-text')?.value || '';
+  const groupsText = document.getElementById('config-groups-text')?.value || '';
+
+  const roleCount = rolesText.split('\n').map(s => s.trim()).filter(Boolean).length;
+  const groupCount = groupsText.split('\n').map(s => s.trim()).filter(Boolean).length;
+
+  const roleBadge = document.getElementById('badge-roles-count');
+  const groupBadge = document.getElementById('badge-groups-count');
+  if (roleBadge) roleBadge.innerText = `${roleCount} 項`;
+  if (groupBadge) groupBadge.innerText = `${groupCount} 項`;
+}
+
+/**
+ * 恢復系統預設清單
+ */
+function resetConfigToDefault() {
+  if (!confirm("確定要將職稱與組別選單清單恢復為系統預設值嗎？")) return;
+
+  const rolesText = document.getElementById('config-roles-text');
+  const groupsText = document.getElementById('config-groups-text');
+
+  if (rolesText) rolesText.value = DEFAULT_CADRE_CONFIG.roles.join('\n');
+  if (groupsText) groupsText.value = DEFAULT_CADRE_CONFIG.groups.join('\n');
+
+  updateConfigCounts();
+  showToast("已帶入預設清單，點擊「儲存」即可生效");
+}
+
+/**
+ * 儲存自訂選單設定至 info/cadre_config
+ */
+async function saveCadreConfig() {
+  const rolesText = document.getElementById('config-roles-text')?.value || '';
+  const groupsText = document.getElementById('config-groups-text')?.value || '';
+
+  const roles = rolesText.split('\n').map(s => s.trim()).filter(Boolean);
+  const groups = groupsText.split('\n').map(s => s.trim()).filter(Boolean);
+
+  if (roles.length === 0) {
+    alert("請至少保留一個職稱/級別項目！");
+    return;
+  }
+  if (groups.length === 0) {
+    alert("請至少保留一個所屬組別項目！");
+    return;
+  }
+
+  const saveBtn = document.getElementById('btn-save-config');
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.innerText = '儲存中...';
+  }
+
+  try {
+    await db.collection('info').doc('cadre_config').set({
+      roles: roles,
+      groups: groups,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+
+    cadreConfig = { roles, groups };
+    populateDropdownOptions();
+
+    if (cadreConfigModalInstance) cadreConfigModalInstance.hide();
+    showToast("🎉 職稱與組別選單設定已成功更新！");
+  } catch (err) {
+    console.error("Failed to save cadre config:", err);
+    alert("儲存選單設定失敗：" + err.message);
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.innerText = '💾 儲存選單設定';
+    }
+  }
 }

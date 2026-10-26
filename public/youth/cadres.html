@@ -124,6 +124,29 @@
       .line-brand-color {
         color: #06C755;
       }
+      .form-select.bg-dark, .form-control.bg-dark {
+        background-color: rgba(18, 24, 38, 0.85) !important;
+        border-color: rgba(255, 255, 255, 0.15) !important;
+        color: #f1f5f9 !important;
+        backdrop-filter: blur(10px);
+      }
+      .form-select.bg-dark:focus, .form-control.bg-dark:focus {
+        border-color: #00F3FF !important;
+        box-shadow: 0 0 10px rgba(0, 243, 255, 0.35) !important;
+      }
+      .btn.interactive {
+        transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      }
+      .btn.interactive:hover {
+        transform: scale(1.02);
+        box-shadow: 0 4px 12px rgba(0, 243, 255, 0.2);
+      }
+      .btn.interactive:active {
+        transform: scale(0.98);
+        filter: brightness(1.1);
+        border-color: #00F3FF;
+        box-shadow: 0 0 10px rgba(0, 243, 255, 0.5);
+      }
     </style>
   </head>
   <body>
@@ -145,6 +168,9 @@
         <button onclick="signOut()" class="bottom-nav-item" style="flex: none; flex-direction: row; gap: 4px; background: none; border: none;">登出</button>
       </div>
       <div class="d-flex gap-2">
+        <button class="btn btn-outline-secondary btn-sm interactive text-light" onclick="openConfigModal()">
+          <i class="fa-solid fa-sliders text-info me-1"></i> 管理職稱與組別
+        </button>
         <button class="btn btn-outline-info btn-sm interactive" onclick="openLineGuideModal()">
           <i class="fa-brands fa-line line-brand-color me-1"></i> 綁定教學
         </button>
@@ -244,10 +270,32 @@
                 </div>
               </div>
 
-              <!-- 2. 幹部角色/職位 -->
-              <div class="mb-3">
-                <label for="cadre-role" class="form-label small text-muted fw-semibold">職稱 / 所屬組別</label>
-                <input type="text" class="form-control bg-dark text-white border-secondary border-opacity-50" id="cadre-role" placeholder="例如：青年小組長 / 世話人 / 總會幹部" value="青年小組長">
+              <!-- 2. 職稱與所屬組別 (雙獨立下拉選單) -->
+              <div class="row g-2 mb-3">
+                <div class="col-6">
+                  <label for="cadre-title-select" class="form-label small text-info fw-semibold">
+                    <i class="fa-solid fa-user-tag me-1"></i> 職稱 / 級別 <span class="text-danger">*</span>
+                  </label>
+                  <select class="form-select bg-dark text-white border-secondary border-opacity-50" id="cadre-title-select" required>
+                    <!-- 動態載入職稱選項 -->
+                  </select>
+                </div>
+                <div class="col-6">
+                  <label for="cadre-group-select" class="form-label small text-info fw-semibold">
+                    <i class="fa-solid fa-users me-1"></i> 所屬組別 / 部署 <span class="text-danger">*</span>
+                  </label>
+                  <select class="form-select bg-dark text-white border-secondary border-opacity-50" id="cadre-group-select" required>
+                    <!-- 動態載入組別選項 -->
+                  </select>
+                </div>
+                <div class="col-12 mt-1 d-flex justify-content-between align-items-center">
+                  <span class="text-muted" style="font-size: 11px;">
+                    <i class="fa-solid fa-circle-info me-1"></i>雙選單獨立設定，隨時可微調名稱
+                  </span>
+                  <button type="button" class="btn btn-link btn-sm text-info p-0 text-decoration-none" style="font-size: 11px;" onclick="openConfigModal()">
+                    <i class="fa-solid fa-sliders me-1"></i>微調選單項目...
+                  </button>
+                </div>
               </div>
 
               <!-- 3. LINE 顯示名稱 -->
@@ -331,6 +379,62 @@
           </div>
           <div class="modal-footer border-0 px-4 pb-3">
             <button type="button" class="btn btn-sm btn-info text-dark fw-bold px-4" data-bs-dismiss="modal">我知道了</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal 3: 自訂/微調職稱與組別選項對話框 -->
+    <div class="modal fade" id="cadreConfigModal" tabindex="-1" aria-labelledby="cadreConfigModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content glass-card text-white" style="background: rgba(13, 20, 36, 0.96); backdrop-filter: blur(20px); border-radius: 18px; border: 1px solid rgba(0, 243, 255, 0.25);">
+          <div class="modal-header border-0 pb-1 pt-3 px-4">
+            <h5 class="modal-title fs-5 fw-bold text-white d-flex align-items-center gap-2" id="cadreConfigModalLabel">
+              <i class="fa-solid fa-sliders text-info"></i> 自訂職稱與所屬組別選單名稱
+            </h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body px-4 py-2">
+            <div class="alert alert-dark border-secondary border-opacity-50 py-2 px-3 small text-muted mb-3 d-flex align-items-center gap-2" style="background: rgba(0, 0, 0, 0.35);">
+              <i class="fa-solid fa-circle-info text-info fs-5"></i>
+              <div>
+                <strong>編輯說明：</strong>每行代表一個選單項目。您可以隨時新增、重新命名、刪除或調整排序，儲存後選單將立即即時同步。
+              </div>
+            </div>
+            <div class="row g-3">
+              <!-- 職稱 / 級別編輯 -->
+              <div class="col-md-6 col-12">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                  <label for="config-roles-text" class="form-label small text-info fw-bold mb-0">
+                    <i class="fa-solid fa-user-tag me-1"></i> 職稱 / 級別項目 (一行一項)
+                  </label>
+                  <span class="badge bg-dark border border-secondary text-muted" id="badge-roles-count">0 項</span>
+                </div>
+                <textarea class="form-control bg-dark text-white border-secondary border-opacity-50 font-monospace" id="config-roles-text" rows="12" style="font-size: 13px; line-height: 1.6;" placeholder="每行一項職稱..." oninput="updateConfigCounts()"></textarea>
+              </div>
+
+              <!-- 所屬組別 / 部署編輯 -->
+              <div class="col-md-6 col-12">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                  <label for="config-groups-text" class="form-label small text-info fw-bold mb-0">
+                    <i class="fa-solid fa-users me-1"></i> 所屬組別 / 部署項目 (一行一項)
+                  </label>
+                  <span class="badge bg-dark border border-secondary text-muted" id="badge-groups-count">0 項</span>
+                </div>
+                <textarea class="form-control bg-dark text-white border-secondary border-opacity-50 font-monospace" id="config-groups-text" rows="12" style="font-size: 13px; line-height: 1.6;" placeholder="每行一項組別..." oninput="updateConfigCounts()"></textarea>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer border-0 px-4 pb-4 pt-3 d-flex justify-content-between">
+            <button type="button" class="btn btn-sm btn-outline-warning interactive" onclick="resetConfigToDefault()">
+              <i class="fa-solid fa-rotate-left me-1"></i> 恢復系統預設值
+            </button>
+            <div class="d-flex gap-2 ms-auto">
+              <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+              <button type="button" id="btn-save-config" class="btn btn-sm btn-info text-dark fw-bold px-4 interactive" onclick="saveCadreConfig()">
+                💾 儲存選單設定
+              </button>
+            </div>
           </div>
         </div>
       </div>
