@@ -521,14 +521,17 @@ function searchSeminars(query) {
     return;
   }
   
+  const terms = q.split(/\s+/).filter(Boolean);
   const filtered = allSeminars.filter((sem) => {
-    const name = (sem.memberName || '').toLowerCase();
-    const loc = (sem.location || '').toLowerCase();
-    const feel = (sem.feelings || '').toLowerCase();
-    const goals = (sem.goals || '').toLowerCase();
-    const attendees = (sem.attendees || '').toLowerCase();
-    
-    return name.includes(q) || loc.includes(q) || feel.includes(q) || goals.includes(q) || attendees.includes(q);
+    const pool = [
+      sem.memberName || '',
+      sem.location || '',
+      sem.feelings || '',
+      sem.goals || '',
+      sem.attendees || ''
+    ].join(' ').toLowerCase();
+
+    return terms.every(t => pool.includes(t));
   });
   
   renderSeminars(filtered);

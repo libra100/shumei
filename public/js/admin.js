@@ -843,41 +843,97 @@ function clear() {
   document.getElementById('note').value = '';
 }
 
+let searchDebounceTimer = null;
+
 function searchAll(query) {
-  const q = query.trim().toLowerCase();
+  if (searchDebounceTimer) {
+    clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = null;
+  }
+
+  const rawQuery = (query || '').trim();
+
+  // 若輸入框清空，立即恢復組別列表，不延遲
+  if (rawQuery.length === 0) {
+    table.innerHTML = '';
+    const cardList = document.getElementById('card-list');
+    if (cardList) cardList.innerHTML = '';
+    getDate(document.getElementById('leader')?.value || '青年部');
+    return;
+  }
+
+  // 150ms 輕量防抖，提升手機注音/拼音輸入流暢度
+  searchDebounceTimer = setTimeout(() => {
+    executeSearch(rawQuery);
+  }, 150);
+}
+
+function executeSearch(rawQuery) {
   table.innerHTML = '';
   const cardList = document.getElementById('card-list');
   if (cardList) cardList.innerHTML = '';
 
-  if (q.length === 0) {
-    getDate(document.getElementById('leader').value || '青年部');
-    return;
-  }
+  if (!data) return;
+
+  // 支援多關鍵字（以空白切分，AND 聯集匹配）
+  const terms = rawQuery.toLowerCase().split(/\s+/).filter(Boolean);
+  if (terms.length === 0) return;
+
+  let matchCount = 0;
 
   data.forEach((doc) => {
-    const d = doc.data();
-    const name = (d.name || '').toLowerCase();
-    const tel = (d.tel || '').toLowerCase();
-    const phone = (d.phone || '').toLowerCase();
-    const adress = (d.adress || '').toLowerCase();
-    const sewajin = (d.sewajin || '').toLowerCase();
-    const note = (d.note || '').toLowerCase();
-    const guide1 = (d.guide && d.guide[0] || '').toLowerCase();
-    const guide2 = (d.guide && d.guide[1] || '').toLowerCase();
+    const d = doc.data() || {};
+    const guides = Array.isArray(d.guide) ? d.guide.join(' ') : (d.guide || '');
+    const conntStr = d.connect ? '已接觸' : '未接觸';
 
-    if (
-      name.includes(q) ||
-      tel.includes(q) ||
-      phone.includes(q) ||
-      adress.includes(q) ||
-      sewajin.includes(q) ||
-      note.includes(q) ||
-      guide1.includes(q) ||
-      guide2.includes(q)
-    ) {
+    // 整合全欄位可搜尋字串池 (含姓名、組別、部別、入信日期、生日、電話、地址、備註、引導人等)
+    const searchableText = [
+      d.name || '',
+      doc.id || '',
+      doc.id ? doc.id.split('A')[0] : '',
+      d.leader || '',
+      d.leader ? `${d.leader}組` : '',
+      d.part || '',
+      d.post || '',
+      d.born || '',
+      d.sewajin || '',
+      d.tel || '',
+      d.phone || '',
+      d.adress || '',
+      d.note || '',
+      guides,
+      conntStr
+    ].join(' ').toLowerCase();
+
+    // 必須所有搜尋詞組皆命中
+    const isMatch = terms.every((term) => searchableText.includes(term));
+
+    if (isMatch) {
+      matchCount++;
       list(doc);
     }
   });
+
+  if (matchCount === 0) {
+    const safeQuery = rawQuery.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const emptyRow = document.createElement('tr');
+    emptyRow.innerHTML = `
+      <td colspan="13" class="text-center py-5 text-muted">
+        <div class="fs-5 fw-semibold mb-1">🔍 查無符合條件的成員</div>
+        <div class="small">搜尋「${safeQuery}」沒有找到相符的姓名、組別、部別、電話、地址或備註</div>
+      </td>
+    `;
+    table.appendChild(emptyRow);
+
+    if (cardList) {
+      cardList.innerHTML = `
+        <div class="text-center py-5 text-muted glass-card my-2">
+          <div class="fs-5 fw-semibold mb-1">🔍 查無符合條件的成員</div>
+          <div class="small">搜尋「${safeQuery}」沒有找到相符資料</div>
+        </div>
+      `;
+    }
+  }
 }
 
 function openGoogleMaps(address) {

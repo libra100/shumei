@@ -336,20 +336,24 @@ function renderCadres() {
   const rate = totalCount > 0 ? Math.round((boundCount / totalCount) * 100) : 0;
   if (statRate) statRate.innerText = `${rate}%`;
 
-  // 篩選與搜尋
+  // 篩選與搜尋 (支援多關鍵字空白切分)
   const filtered = cadreItems.filter(item => {
     if (currentFilter === 'bound' && !item.isBound) return false;
     if (currentFilter === 'unbound' && item.isBound) return false;
 
     if (search) {
-      const matchName = item.name.toLowerCase().includes(search);
-      const matchAlias = (item.alias || '').toLowerCase().includes(search);
-      const matchLine = item.lineDisplayName.toLowerCase().includes(search);
-      const matchRole = item.role.toLowerCase().includes(search);
-      const matchTitle = (item.roleTitle || '').toLowerCase().includes(search);
-      const matchGroup = (item.group || '').toLowerCase().includes(search);
-      const matchUid = item.lineUserId.toLowerCase().includes(search);
-      return matchName || matchAlias || matchLine || matchRole || matchTitle || matchGroup || matchUid;
+      const terms = search.split(/\s+/).filter(Boolean);
+      const pool = [
+        item.name || '',
+        item.alias || '',
+        item.lineDisplayName || '',
+        item.role || '',
+        item.roleTitle || '',
+        item.group || '',
+        item.lineUserId || ''
+      ].join(' ').toLowerCase();
+
+      return terms.every(t => pool.includes(t));
     }
     return true;
   });
