@@ -136,8 +136,13 @@ async function loadMembersData() {
       }
     }
 
-    // 渲染特殊焦點與備註成員
-    const attentionMembers = allMembers.filter(m => m.note && m.note.trim().length > 0);
+    // 渲染特殊焦點與備註成員 (排除大學生部學校名稱，只呈現需關懷之特殊狀況)
+    const attentionMembers = allMembers.filter(m => {
+      if (!m.note || !m.note.trim()) return false;
+      if (isSchoolOrEducationNote(m)) return false;
+      return true;
+    });
+
     const attentionContainer = document.getElementById('attention-list');
     if (attentionContainer) {
       if (attentionMembers.length === 0) {
@@ -160,6 +165,39 @@ async function loadMembersData() {
   } catch (err) {
     console.error("Error loading members:", err);
   }
+}
+
+/**
+ * 判斷是否為就學學校名稱備註 (例如大學生部成員備註為「臺灣大學」、「淡江大學」等，不列入待關懷焦點)
+ */
+function isSchoolOrEducationNote(m) {
+  if (!m || !m.note) return false;
+  const note = m.note.trim();
+  const part = (m.part || '').trim();
+  const leader = (m.leader || '').trim();
+
+  // 1. 包含明確學校或科系關鍵字
+  const schoolPattern = /(?:大學|學院|科大|技術學院|專科|學校|高中|高職|國中|小學|研究所|碩士班|博士班|學系)/i;
+  if (schoolPattern.test(note)) {
+    return true;
+  }
+
+  // 2. 常見無「大學」後綴之大專院校簡稱
+  const schoolAbbrPattern = /^(?:[台臺]大|政大|清大|交大|成大|師大|北大|輔大|東吳|淡江|銘傳|文化|實踐|世新|逢甲|東海|中原|元智|長庚|高醫|北醫|慈濟|高科|中興|中正|中山|中央|陽明|北藝|台藝|國北教|市北|真理|靜宜|大同|義守|南台|朝陽|弘光|樹德|崑山|嘉藥|文藻|致理|德明|醒吾|景文|東南|明志|亞東|台商|虎科|勤益|屏科|高餐|金大)$/i;
+  if (schoolAbbrPattern.test(note)) {
+    return true;
+  }
+
+  // 3. 若為大學生部 (part === '大學生' 或 leader === '大學生')
+  // 排除非警示性的純常規備註
+  if (part === '大學生' || leader === '大學生') {
+    const careKeywords = /(?:神光|未成年|休學|退學|重考|生病|住院|出國|失聯|需關懷|注意|？|\?|急需)/;
+    if (!careKeywords.test(note)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /**
