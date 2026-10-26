@@ -85,6 +85,8 @@ async function callGeminiSafe(genAI, promptOrParts, logger) {
       const startTime = Date.now();
       const res = await m.generateContent(promptOrParts);
       logger.info(`[Gemini] Model ${modelName} succeeded in ${Date.now() - startTime}ms`);
+      res.usedModel = modelName;
+      res.latencyMs = Date.now() - startTime;
       return res;
     } catch (err) {
       lastError = err;
@@ -96,6 +98,12 @@ async function callGeminiSafe(genAI, promptOrParts, logger) {
     }
   }
   throw lastError;
+}
+
+// Helper: 在回覆底部附加運算模型標籤
+function appendModelTag(text, modelName) {
+  if (!text || !modelName) return text;
+  return `${text.trimEnd()}\n\n⚡ 運算模型：${modelName}`;
 }
 
 // Helper: 依據錯誤原因產生差異化、人性化的回覆說明
@@ -481,7 +489,7 @@ exports.processLineEvent = onMessagePublished(
           });
 
           const webUrl = "https://shumei-2025.web.app/youth/list.html?q=" + encodeURIComponent(parsedData.name);
-          const replyText = `🎉 收到入信願書！已成功為「${parsedData.name}」建立成員資料。\n\n📅 入信日期：${parsedData.joinDate} (編號: ${joinDateId})\n🎂 出生日期：${parsedData.born || "未註明"}\n🤝 介紹人：${guideList.join("、") || "無"}\n🌾 世話人：${parsedData.sewajin || "無"}\n📞 電話：${parsedData.phone || parsedData.tel || "未註明"}\n🏠 地址：${parsedData.adress || "未註明"}\n✍️ 建檔人員：${editorLabel}\n\n🔗 點此查看青年部名冊：\n${webUrl}`;
+          const replyText = appendModelTag(`🎉 收到入信願書！已成功為「${parsedData.name}」建立成員資料。\n\n📅 入信日期：${parsedData.joinDate} (編號: ${joinDateId})\n🎂 出生日期：${parsedData.born || "未註明"}\n🤝 介紹人：${guideList.join("、") || "無"}\n🌾 世話人：${parsedData.sewajin || "無"}\n📞 電話：${parsedData.phone || parsedData.tel || "未註明"}\n🏠 地址：${parsedData.adress || "未註明"}\n✍️ 建檔人員：${editorLabel}\n\n🔗 點此查看青年部名冊：\n${webUrl}`, aiResponse.usedModel);
 
           await client.replyMessage({
             replyToken,
@@ -491,7 +499,7 @@ exports.processLineEvent = onMessagePublished(
         } else {
           // 非願書照片
           if (isPrivateChat || isTagged) {
-            const replyMsg = parsedData.reply || "這張照片看起來不是「入信願書」喔！請傳送平整清晰的紙本願書照片。";
+            const replyMsg = appendModelTag(parsedData.reply || "這張照片看起來不是「入信願書」喔！請傳送平整清晰的紙本願書照片。", aiResponse.usedModel);
             await client.replyMessage({
               replyToken,
               messages: [{ type: "text", text: replyMsg }]
@@ -616,7 +624,8 @@ exports.processLineEvent = onMessagePublished(
           });
 
           const targetsStr = (parsedData.targetNames && parsedData.targetNames.length > 0) ? parsedData.targetNames.join("、") : "未特別註明";
-          const replyText = `🙏 感謝您的誠心實踐！已成功記錄淨靈打卡！\n\n👤 實踐者：${userName}\n📅 日期：${logDate}\n✨ 本次施光：共 ${tCount} 人次\n   • 信徒：${bCount} 人次\n   • 未信徒：${nbCount} 人次\n🎯 施光對象：${targetsStr}\n\n🔗 查看全會即時打卡動態：\nhttps://shumei-2025.web.app/activities/jyorei.html`;
+          let replyText = `🙏 感謝您的誠心實踐！已成功記錄淨靈打卡！\n\n👤 實踐者：${userName}\n📅 日期：${logDate}\n✨ 本次施光：共 ${tCount} 人次\n   • 信徒：${bCount} 人次\n   • 未信徒：${nbCount} 人次\n🎯 施光對象：${targetsStr}\n\n🔗 查看全會即時打卡動態：\nhttps://shumei-2025.web.app/activities/jyorei.html`;
+          replyText = appendModelTag(replyText, aiResponse.usedModel);
 
           await client.replyMessage({
             replyToken,
@@ -626,7 +635,7 @@ exports.processLineEvent = onMessagePublished(
         } else if (parsedData.reply && (isPrivateChat || isTagged)) {
           await client.replyMessage({
             replyToken,
-            messages: [{ type: "text", text: parsedData.reply }]
+            messages: [{ type: "text", text: appendModelTag(parsedData.reply, aiResponse.usedModel) }]
           });
           return;
         }
@@ -718,7 +727,7 @@ exports.processLineEvent = onMessagePublished(
             if (!matchedMember) {
               await client.replyMessage({
                 replyToken,
-                messages: [{ type: "text", text: `查無成員「${targetName}」的聯絡資訊。\n可至青年部名冊查詢：https://shumei-2025.web.app/youth/list.html` }]
+                messages: [{ type: "text", text: appendModelTag(`查無成員「${targetName}」的聯絡資訊。\n可至青年部名冊查詢：https://shumei-2025.web.app/youth/list.html`, aiResponse.usedModel) }]
               });
               return;
             }
@@ -726,7 +735,7 @@ exports.processLineEvent = onMessagePublished(
             const phone = matchedMember.phone || "未提供";
             const tel = matchedMember.tel || "未提供";
             const adress = matchedMember.adress || "未提供";
-            const replyText = `👤【${matchedMember.name}】聯絡資訊：\n\n📱 行動電話：${phone}\n☎️ 市內電話：${tel}\n🏠 通訊地址：${adress}\n\n🔗 查看名冊：\nhttps://shumei-2025.web.app/youth/list.html?q=${encodeURIComponent(matchedMember.name)}`;
+            const replyText = appendModelTag(`👤【${matchedMember.name}】聯絡資訊：\n\n📱 行動電話：${phone}\n☎️ 市內電話：${tel}\n🏠 通訊地址：${adress}\n\n🔗 查看名冊：\nhttps://shumei-2025.web.app/youth/list.html?q=${encodeURIComponent(matchedMember.name)}`, aiResponse.usedModel);
 
             await client.replyMessage({
               replyToken,
@@ -745,6 +754,7 @@ exports.processLineEvent = onMessagePublished(
               replyText += `\n\n共計 ${downlines.length} 位成員。`;
             }
             replyText += `\n\n🔗 查看完整靈線圖：\nhttps://shumei-2025.web.app/youth/lineage.html`;
+            replyText = appendModelTag(replyText, aiResponse.usedModel);
 
             await client.replyMessage({
               replyToken,
@@ -758,7 +768,7 @@ exports.processLineEvent = onMessagePublished(
             if (!matchedMember) {
               await client.replyMessage({
                 replyToken,
-                messages: [{ type: "text", text: `查無成員「${targetName}」的靈線資料。\n可至青年部名冊查詢：https://shumei-2025.web.app/youth/list.html` }]
+                messages: [{ type: "text", text: appendModelTag(`查無成員「${targetName}」的靈線資料。\n可至青年部名冊查詢：https://shumei-2025.web.app/youth/list.html`, aiResponse.usedModel) }]
               });
               return;
             }
@@ -768,7 +778,7 @@ exports.processLineEvent = onMessagePublished(
             const leaderStr = matchedMember.leader || "未分組";
             const partStr = matchedMember.part || "青年部";
 
-            const replyText = `🌿【${matchedMember.name}】靈線與成員資訊：\n\n🤝 介紹人：${guideStr}\n🌾 世話人：${sewajinStr}\n🚩 所屬組長：${leaderStr}\n🏛️ 所屬部門：${partStr}\n📅 入信編號：${matchedMember.id.split('A')[0]}\n\n🔗 查看 3D 靈線關係網絡：\nhttps://shumei-2025.web.app/youth/lineage.html`;
+            const replyText = appendModelTag(`🌿【${matchedMember.name}】靈線與成員資訊：\n\n🤝 介紹人：${guideStr}\n🌾 世話人：${sewajinStr}\n🚩 所屬組長：${leaderStr}\n🏛️ 所屬部門：${partStr}\n📅 入信編號：${matchedMember.id.split('A')[0]}\n\n🔗 查看 3D 靈線關係網絡：\nhttps://shumei-2025.web.app/youth/lineage.html`, aiResponse.usedModel);
 
             await client.replyMessage({
               replyToken,
@@ -1053,6 +1063,7 @@ exports.processLineEvent = onMessagePublished(
       }
 
       if (replyText !== "") {
+        replyText = appendModelTag(replyText, aiResponse.usedModel);
         await client.replyMessage({
           replyToken: replyToken,
           messages: [{ type: "text", text: replyText }],
