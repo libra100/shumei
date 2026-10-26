@@ -68,9 +68,77 @@ exports.lineWebhook = onRequest(
   }
 );
 
+// Helper: 智慧 Gemini 呼叫器 (含多模型自動備援 Fallback 與重試)
+async function callGeminiSafe(genAI, promptOrParts, logger) {
+  const modelsToTry = [
+    "gemini-3.8-flash",
+    "gemini-2.5-flash",
+    "gemini-1.5-flash"
+  ];
+  let lastError = null;
+
+  for (let i = 0; i < modelsToTry.length; i++) {
+    const modelName = modelsToTry[i];
+    try {
+      logger.info(`[Gemini] Attempting call with model: ${modelName}`);
+      const m = genAI.getGenerativeModel({ model: modelName });
+      const startTime = Date.now();
+      const res = await m.generateContent(promptOrParts);
+      logger.info(`[Gemini] Model ${modelName} succeeded in ${Date.now() - startTime}ms`);
+      return res;
+    } catch (err) {
+      lastError = err;
+      const status = err.status || (err.message && err.message.match(/\[(\d{3})\]/)?.[1]);
+      logger.warn(`[Gemini] Model ${modelName} failed (status: ${status || 'unknown'}): ${err.message}`);
+      if (i < modelsToTry.length - 1) {
+        await new Promise(r => setTimeout(r, 800));
+      }
+    }
+  }
+  throw lastError;
+}
+
+// Helper: 依據錯誤原因產生差異化、人性化的回覆說明
+function getFriendlyErrorMessage(err, context = "general") {
+  const errMsg = (err && err.message) ? err.message : String(err);
+  const status = err.status || (errMsg.match(/\[(\d{3})\]/)?.[1]);
+
+  if (status == 503 || errMsg.includes("503") || errMsg.includes("high demand") || errMsg.includes("Service Unavailable")) {
+    return "🤖 AI 雲端模型目前瞬間用量較大（503 暫時忙碌），小助理已自動排隊但暫時逾時，請稍候 5 ~ 10 秒後再傳送一次喔！";
+  }
+  if (status == 429 || errMsg.includes("429") || errMsg.includes("Quota") || errMsg.includes("ResourceExhausted")) {
+    return "⏳ AI 呼叫頻率已達雲端上限（429 流量管制），請稍等約 10 秒後再試～";
+  }
+  if (errMsg.includes("timeout") || errMsg.includes("ETIMEDOUT") || errMsg.includes("DEADLINE_EXCEEDED")) {
+    return "⏱️ 伺服器處理連線逾時（可能因網路延遲或傳送內容較大），請確認網路連線後再試一次！";
+  }
+  if (errMsg.includes("JSON") || errMsg.includes("AI 解析失敗")) {
+    if (context === "jyorei") {
+      return "🙏 淨靈打卡格式未能完全辨識～\n💡 建議直接輸入例如：「今天施光2次信徒」或「今天跟小明淨靈3次」。";
+    }
+    if (context === "ocr") {
+      return "📷 願書辨識未完全成功，照片可能反光或傾斜，請盡量由上往下平拍再傳送一次！";
+    }
+    if (context === "lineage") {
+      return "🌿 靈線查詢未能辨識出人名～\n💡 建議輸入：「王小明的介紹人是誰？」或「誰是陳小華的世話人？」。";
+    }
+    if (context === "seminar") {
+      return "🍑 座談會登記提醒：請提供會談對象的姓名與日期（例如：「今天與王小明座談...」）。";
+    }
+    return "🤔 小助理未能完全辨識這段文字的意思，請換個更簡潔直白的描述再試一次！";
+  }
+  return `抱歉，系統處理時發生異常（${errMsg.slice(0, 35)}...），請稍後再試一次。`;
+}
+
 // 2. Background Function to process the event using Gemini API
 exports.processLineEvent = onMessagePublished(
-  { topic: "process-line-event", secrets: [lineChannelSecret, lineChannelAccessToken, geminiApiKey], region: "asia-east1" },
+  {
+    topic: "process-line-event",
+    secrets: [lineChannelSecret, lineChannelAccessToken, geminiApiKey],
+    region: "asia-east1",
+    timeoutSeconds: 120,
+    memory: "512MiB"
+  },
   async (pubsubEvent) => {
     const event = pubsubEvent.data.message.json.event;
     if (!event) return;
@@ -117,8 +185,9 @@ exports.processLineEvent = onMessagePublished(
       logger.error("Failed to get user profile", e);
     }
 
+    logger.info(`[LineEvent] From ${userName} (${userId || "unknown"}), type=${sourceType}, isImage=${isImage}, text="${userMessage.slice(0, 80)}"`);
+
     const genAI = new GoogleGenerativeAI(geminiApiKey.value());
-    const model = genAI.getGenerativeModel({ model: "gemini-3.8-flash" });
     const nowStr = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false });
 
     // 輔助函式：檢查發話者是否為已認證的幹部/編輯人員 (對應 Firestore info/editors)
@@ -352,7 +421,7 @@ exports.processLineEvent = onMessagePublished(
 
 請直接回傳純 JSON 字串，不要包含任何 Markdown 標記（例如 \`\`\`json 等）。
 `;
-        const aiResponse = await model.generateContent([
+        const aiResponse = await callGeminiSafe(genAI, [
           ocrPrompt,
           {
             inlineData: {
@@ -360,7 +429,7 @@ exports.processLineEvent = onMessagePublished(
               mimeType: "image/jpeg"
             }
           }
-        ]);
+        ], logger);
 
         let parsedData;
         try {
@@ -372,7 +441,7 @@ exports.processLineEvent = onMessagePublished(
           if (isPrivateChat || isTagged) {
             await client.replyMessage({
               replyToken,
-              messages: [{ type: "text", text: "抱歉，無法清晰辨識這張圖片的內容，請嘗試拍攝更清楚平整的照片。" }]
+              messages: [{ type: "text", text: "📷 願書文字辨識解析異常，可能照片稍有晃動或反光，請嘗試由上往下平拍再傳送一次。" }]
             });
           }
           return;
@@ -437,7 +506,7 @@ exports.processLineEvent = onMessagePublished(
         if (isPrivateChat || isTagged) {
           await client.replyMessage({
             replyToken,
-            messages: [{ type: "text", text: "抱歉，願書辨識過程發生異常，請稍後再試。" }]
+            messages: [{ type: "text", text: getFriendlyErrorMessage(err, "ocr") }]
           }).catch(e => logger.error("Error sending error reply", e));
         }
         return;
@@ -522,7 +591,7 @@ exports.processLineEvent = onMessagePublished(
 使用者訊息：
 "${userMessage}"
 `;
-        const aiResponse = await model.generateContent(jyoreiPrompt);
+        const aiResponse = await callGeminiSafe(genAI, jyoreiPrompt, logger);
         const rawText = aiResponse.response.text();
         const cleanText = rawText.replace(/^```json/g, '').replace(/^```/g, '').replace(/```$/g, '').trim();
         const parsedData = JSON.parse(cleanText);
@@ -556,9 +625,22 @@ exports.processLineEvent = onMessagePublished(
             messages: [{ type: "text", text: replyText }]
           });
           return;
+        } else if (parsedData.reply && (isPrivateChat || isTagged)) {
+          await client.replyMessage({
+            replyToken,
+            messages: [{ type: "text", text: parsedData.reply }]
+          });
+          return;
         }
       } catch (err) {
         logger.error("Error processing jyorei log", err);
+        if (replyToken && (isPrivateChat || isTagged)) {
+          await client.replyMessage({
+            replyToken,
+            messages: [{ type: "text", text: getFriendlyErrorMessage(err, "jyorei") }]
+          }).catch(e => logger.error("Error sending error reply", e));
+        }
+        return;
       }
     }
 
@@ -581,7 +663,7 @@ exports.processLineEvent = onMessagePublished(
 使用者訊息：
 "${userMessage}"
 `;
-        const aiResponse = await model.generateContent(queryPrompt);
+        const aiResponse = await callGeminiSafe(genAI, queryPrompt, logger);
         const rawText = aiResponse.response.text();
         const cleanText = rawText.replace(/^```json/g, '').replace(/^```/g, '').replace(/```$/g, '').trim();
         const parsedQuery = JSON.parse(cleanText);
@@ -699,6 +781,13 @@ exports.processLineEvent = onMessagePublished(
         }
       } catch (err) {
         logger.error("Error processing lineage query", err);
+        if (replyToken && (isPrivateChat || isTagged)) {
+          await client.replyMessage({
+            replyToken,
+            messages: [{ type: "text", text: getFriendlyErrorMessage(err, "lineage") }]
+          }).catch(e => logger.error("Error sending error reply", e));
+        }
+        return;
       }
     }
 
@@ -919,7 +1008,7 @@ exports.processLineEvent = onMessagePublished(
 "${userMessage}"
 `;
       
-      const aiResponse = await model.generateContent(prompt);
+      const aiResponse = await callGeminiSafe(genAI, prompt, logger);
 
       let parsedData;
       try {
@@ -977,7 +1066,7 @@ exports.processLineEvent = onMessagePublished(
       if (replyToken && (isPrivateChat || isTagged)) {
         await client.replyMessage({
           replyToken: replyToken,
-          messages: [{ type: "text", text: "抱歉，系統目前有些忙碌，請稍後再試一次。" }],
+          messages: [{ type: "text", text: getFriendlyErrorMessage(error, "seminar") }],
         }).catch(e => logger.error("Error sending error reply", e));
       }
     }
