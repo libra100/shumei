@@ -135,9 +135,7 @@ exports.processLineEvent = onMessagePublished(
   {
     topic: "process-line-event",
     secrets: [lineChannelSecret, lineChannelAccessToken, geminiApiKey],
-    region: "asia-east1",
-    timeoutSeconds: 120,
-    memory: "512MiB"
+    region: "asia-east1"
   },
   async (pubsubEvent) => {
     const event = pubsubEvent.data.message.json.event;
