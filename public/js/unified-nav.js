@@ -312,38 +312,58 @@
     }
   };
 
-  // 9. 注入必要樣式 (符合全局 Glassmorphism、Spring 動畫與互動回饋規範)
+  // 9. 注入必要樣式 (Apple 最新 VisionOS / iOS 18 懸浮膠囊島磨砂玻璃 Liquid Glass 規範)
   function injectNavStyles() {
     if (document.getElementById('unified-nav-style')) return;
     const style = document.createElement('style');
     style.id = 'unified-nav-style';
     style.innerHTML = `
+      /* 蘋果最新懸浮膠囊島導覽列 (Apple Floating Glass Dock) */
       .unified-bottom-nav {
         position: fixed !important;
-        bottom: 0 !important;
-        left: 0 !important;
-        width: 100% !important;
-        height: 62px !important;
-        background: rgba(10, 15, 30, 0.88) !important;
-        backdrop-filter: blur(15px) !important;
-        -webkit-backdrop-filter: blur(15px) !important;
-        border-top: 1px solid rgba(0, 243, 255, 0.25) !important;
+        bottom: calc(14px + env(safe-area-inset-bottom, 0px)) !important;
+        left: 14px !important;
+        right: 14px !important;
+        width: calc(100% - 28px) !important;
+        max-width: 480px !important;
+        margin: 0 auto !important;
+        height: 64px !important;
+        border-radius: 32px !important;
+        background: linear-gradient(
+          135deg,
+          rgba(255, 255, 255, 0.18) 0%,
+          rgba(255, 255, 255, 0.06) 35%,
+          rgba(10, 16, 32, 0.76) 100%
+        ) !important;
+        backdrop-filter: blur(28px) saturate(210%) contrast(108%) brightness(1.08) !important;
+        -webkit-backdrop-filter: blur(28px) saturate(210%) contrast(108%) brightness(1.08) !important;
+        border: 1px solid rgba(255, 255, 255, 0.22) !important;
+        border-top: 1px solid rgba(255, 255, 255, 0.58) !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.12) !important;
         display: flex !important;
         justify-content: space-around !important;
         align-items: center !important;
-        padding: 4px 8px !important;
+        padding: 6px 8px !important;
         z-index: 1050 !important;
-        box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.55), 0 0 15px rgba(0, 243, 255, 0.05) !important;
-        position: fixed !important;
+        box-shadow:
+          0 20px 48px -10px rgba(0, 0, 0, 0.72),
+          0 8px 18px -4px rgba(0, 0, 0, 0.45),
+          inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.7),
+          inset 0 -1px 2px 0 rgba(0, 0, 0, 0.45),
+          0 0 24px rgba(0, 243, 255, 0.16) !important;
+        overflow: hidden !important;
       }
 
+      /* 2% 噪點質感知覺紋理疊加 (Apple Sandblasted Optical Texture) */
       .unified-bottom-nav::before {
         content: "";
         position: absolute;
         top: 0; left: 0; right: 0; bottom: 0;
-        background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"><filter id="noiseFilter"><feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="3" stitchTiles="stitch"/></filter><rect width="100%" height="100%" filter="url(%23noiseFilter)" opacity="0.03"/></svg>');
+        background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"><filter id="noiseFilter"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" stitchTiles="stitch"/></filter><rect width="100%" height="100%" filter="url(%23noiseFilter)" opacity="0.035"/></svg>');
+        border-radius: inherit;
         pointer-events: none;
-        z-index: -1;
+        z-index: 0;
+        mix-blend-mode: overlay;
       }
 
       .unified-bottom-nav .bottom-nav-item {
@@ -351,35 +371,40 @@
         flex-direction: column !important;
         align-items: center !important;
         justify-content: center !important;
-        color: rgba(255, 255, 255, 0.65) !important;
+        color: rgba(255, 255, 255, 0.62) !important;
         text-decoration: none !important;
-        font-size: 11px !important;
+        font-size: clamp(10px, 2.7vw, 11px) !important;
         font-weight: 500 !important;
+        letter-spacing: -0.2px !important;
         flex: 1 !important;
-        padding: 5px 0 !important;
-        transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.25s ease, color 0.2s ease !important;
-        background: none !important;
-        border: none !important;
+        height: 52px !important;
+        padding: 3px 2px !important;
+        margin: 0 1.5px !important;
+        transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.25s ease, background 0.2s ease, color 0.2s ease, border-color 0.2s ease !important;
+        background: transparent !important;
+        border: 1px solid transparent !important;
         cursor: pointer !important;
-        border-radius: 10px !important;
-        animation: navItemFadeIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+        border-radius: 20px !important;
+        position: relative !important;
+        z-index: 1 !important;
+        animation: navItemFadeIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
       }
 
-      .unified-bottom-nav .bottom-nav-item:nth-child(1) { animation-delay: 50ms; }
-      .unified-bottom-nav .bottom-nav-item:nth-child(2) { animation-delay: 100ms; }
-      .unified-bottom-nav .bottom-nav-item:nth-child(3) { animation-delay: 150ms; }
-      .unified-bottom-nav .bottom-nav-item:nth-child(4) { animation-delay: 200ms; }
-      .unified-bottom-nav .bottom-nav-item:nth-child(5) { animation-delay: 250ms; }
-      .unified-bottom-nav .bottom-nav-item:nth-child(6) { animation-delay: 300ms; }
+      .unified-bottom-nav .bottom-nav-item:nth-child(1) { animation-delay: 40ms; }
+      .unified-bottom-nav .bottom-nav-item:nth-child(2) { animation-delay: 80ms; }
+      .unified-bottom-nav .bottom-nav-item:nth-child(3) { animation-delay: 120ms; }
+      .unified-bottom-nav .bottom-nav-item:nth-child(4) { animation-delay: 160ms; }
+      .unified-bottom-nav .bottom-nav-item:nth-child(5) { animation-delay: 200ms; }
+      .unified-bottom-nav .bottom-nav-item:nth-child(6) { animation-delay: 240ms; }
 
       @keyframes navItemFadeIn {
         from {
           opacity: 0;
-          transform: translateY(8px);
+          transform: translateY(12px) scale(0.92);
         }
         to {
           opacity: 1;
-          transform: translateY(0);
+          transform: translateY(0) scale(1);
         }
       }
 
@@ -388,39 +413,94 @@
         height: 22px !important;
         margin-bottom: 2px !important;
         fill: currentColor !important;
-        transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+        transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), filter 0.2s ease !important;
       }
 
       /* Hover Effect: Scale 1.02, Shadow spread +8px (soft), Physics-Spring(150, 12) */
       .unified-bottom-nav .bottom-nav-item:hover {
-        transform: scale(1.02) !important;
-        box-shadow: 0 4px 12px rgba(0, 243, 255, 0.15) !important;
-        color: #fff !important;
+        transform: translateY(-2px) scale(1.02) !important;
+        background: rgba(255, 255, 255, 0.08) !important;
+        border-color: rgba(255, 255, 255, 0.16) !important;
+        box-shadow: 0 4px 16px rgba(0, 243, 255, 0.18) !important;
+        color: #ffffff !important;
       }
 
       /* Active State: Scale 0.98, Brightness +10%, Border #00F3FF, Glow-radius 10px */
       .unified-bottom-nav .bottom-nav-item:active {
-        transform: scale(0.98) !important;
-        filter: brightness(1.1) !important;
+        transform: scale(0.95) !important;
+        filter: brightness(1.15) !important;
+        border-color: #00F3FF !important;
+        box-shadow: 0 0 10px rgba(0, 243, 255, 0.7) !important;
       }
 
+      /* Apple Active Micro-Capsule Indicator (蘋果微膠囊背光指示器) */
       .unified-bottom-nav .bottom-nav-item.active {
         color: #00F3FF !important;
         font-weight: 700 !important;
+        background: rgba(255, 255, 255, 0.12) !important;
+        border: 1px solid rgba(0, 243, 255, 0.4) !important;
+        border-radius: 20px !important;
+        box-shadow:
+          0 2px 10px rgba(0, 243, 255, 0.28),
+          inset 0 1px 1px rgba(255, 255, 255, 0.5),
+          inset 0 -1px 1px rgba(0, 0, 0, 0.25) !important;
       }
 
       .unified-bottom-nav .bottom-nav-item.active svg {
         filter: drop-shadow(0 0 8px #00F3FF) !important;
-        transform: translateY(-2px) scale(1.05) !important;
+        transform: translateY(-1px) scale(1.08) !important;
       }
 
-      /* 幹部更多抽屜樣式 */
+      /* 桌面端 Header 磨砂玻璃選單升級 */
+      .app-header-nav.desktop-only {
+        background: linear-gradient(
+          135deg,
+          rgba(255, 255, 255, 0.12) 0%,
+          rgba(255, 255, 255, 0.03) 40%,
+          rgba(10, 15, 30, 0.6) 100%
+        ) !important;
+        backdrop-filter: blur(24px) saturate(200%) !important;
+        -webkit-backdrop-filter: blur(24px) saturate(200%) !important;
+        border: 1px solid rgba(255, 255, 255, 0.18) !important;
+        border-top: 1px solid rgba(255, 255, 255, 0.45) !important;
+        border-radius: 24px !important;
+        padding: 4px 6px !important;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.5) !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 3px !important;
+      }
+
+      .app-header-nav.desktop-only .bottom-nav-item {
+        border-radius: 16px !important;
+        padding: 5px 12px !important;
+        font-size: 13px !important;
+        font-weight: 500 !important;
+        color: rgba(255, 255, 255, 0.7) !important;
+        transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+      }
+
+      .app-header-nav.desktop-only .bottom-nav-item:hover {
+        background: rgba(255, 255, 255, 0.1) !important;
+        color: #ffffff !important;
+        transform: translateY(-1px) scale(1.02) !important;
+      }
+
+      .app-header-nav.desktop-only .bottom-nav-item.active {
+        background: rgba(0, 243, 255, 0.15) !important;
+        color: #00F3FF !important;
+        font-weight: 700 !important;
+        border: 1px solid rgba(0, 243, 255, 0.35) !important;
+        box-shadow: 0 2px 8px rgba(0, 243, 255, 0.25), inset 0 1px 0.5px rgba(255, 255, 255, 0.4) !important;
+      }
+
+      /* 幹部更多抽屜樣式 - Apple VisionOS 磨砂玻璃抽屜 */
       .cadre-more-overlay {
         position: fixed;
         top: 0; left: 0; width: 100%; height: 100%;
         background: rgba(0, 0, 0, 0.65);
-        backdrop-filter: blur(15px);
-        -webkit-backdrop-filter: blur(15px);
+        backdrop-filter: blur(20px) saturate(180%);
+        -webkit-backdrop-filter: blur(20px) saturate(180%);
         z-index: 1100;
         display: flex;
         align-items: flex-end;
@@ -435,13 +515,25 @@
       .cadre-more-sheet {
         width: 100%;
         max-width: 520px;
-        background: rgba(13, 20, 36, 0.96) !important;
-        border-top: 1px solid rgba(0, 243, 255, 0.35) !important;
-        border-radius: 24px 24px 0 0 !important;
-        padding: 22px 20px 40px 20px !important;
-        box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.8), 0 0 25px rgba(0, 243, 255, 0.15);
+        background: linear-gradient(
+          145deg,
+          rgba(255, 255, 255, 0.16) 0%,
+          rgba(255, 255, 255, 0.05) 30%,
+          rgba(13, 20, 36, 0.94) 100%
+        ) !important;
+        backdrop-filter: blur(32px) saturate(210%) contrast(108%) brightness(1.05) !important;
+        -webkit-backdrop-filter: blur(32px) saturate(210%) contrast(108%) brightness(1.05) !important;
+        border: 1px solid rgba(255, 255, 255, 0.24) !important;
+        border-top: 1px solid rgba(255, 255, 255, 0.6) !important;
+        border-bottom: none !important;
+        border-radius: 32px 32px 0 0 !important;
+        padding: 24px 22px calc(38px + env(safe-area-inset-bottom, 0px)) 22px !important;
+        box-shadow:
+          0 -16px 50px rgba(0, 0, 0, 0.85),
+          0 0 30px rgba(0, 243, 255, 0.15),
+          inset 0 1px 1.5px rgba(255, 255, 255, 0.7) !important;
         transform: translateY(100%);
-        transition: transform 0.28s cubic-bezier(0.175, 0.885, 0.32, 1.2);
+        transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.2);
         position: relative;
         overflow: hidden;
       }
@@ -449,9 +541,10 @@
         content: "";
         position: absolute;
         top: 0; left: 0; right: 0; bottom: 0;
-        background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"><filter id="noiseFilter"><feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="3" stitchTiles="stitch"/></filter><rect width="100%" height="100%" filter="url(%23noiseFilter)" opacity="0.02"/></svg>');
+        background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"><filter id="noiseFilter"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" stitchTiles="stitch"/></filter><rect width="100%" height="100%" filter="url(%23noiseFilter)" opacity="0.03"/></svg>');
         pointer-events: none;
         z-index: 0;
+        mix-blend-mode: overlay;
       }
       .cadre-more-overlay.show .cadre-more-sheet {
         transform: translateY(0);
@@ -466,29 +559,31 @@
       }
 
       .cadre-more-item {
-        background: rgba(255, 255, 255, 0.04);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 14px;
-        padding: 14px;
-        display: flex;
-        flex-direction: column;
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%) !important;
+        border: 1px solid rgba(255, 255, 255, 0.14) !important;
+        border-top: 1px solid rgba(255, 255, 255, 0.3) !important;
+        border-radius: 18px !important;
+        padding: 14px 15px !important;
+        display: flex !important;
+        flex-direction: column !important;
         text-decoration: none !important;
         color: #fff !important;
-        transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.25s ease, border-color 0.2s ease;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25), inset 0 1px 0.5px rgba(255, 255, 255, 0.25) !important;
+        transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.25s ease, border-color 0.2s ease, background 0.2s ease !important;
       }
       /* Hover Effect: Scale 1.02, Shadow spread +8px (soft) */
       .cadre-more-item:hover {
-        background: rgba(0, 243, 255, 0.08);
-        border-color: rgba(0, 243, 255, 0.45);
-        transform: scale(1.02);
-        box-shadow: 0 4px 20px rgba(0, 243, 255, 0.2);
+        background: linear-gradient(135deg, rgba(0, 243, 255, 0.15) 0%, rgba(0, 243, 255, 0.04) 100%) !important;
+        border-color: rgba(0, 243, 255, 0.5) !important;
+        transform: scale(1.02) !important;
+        box-shadow: 0 8px 24px rgba(0, 243, 255, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.4) !important;
       }
       /* Active State: Scale 0.98, Brightness +10%, Border #00F3FF, Glow-radius 10px */
       .cadre-more-item:active {
-        transform: scale(0.98);
-        filter: brightness(1.1);
-        border-color: #00F3FF;
-        box-shadow: 0 0 10px rgba(0, 243, 255, 0.6);
+        transform: scale(0.97) !important;
+        filter: brightness(1.15) !important;
+        border-color: #00F3FF !important;
+        box-shadow: 0 0 12px rgba(0, 243, 255, 0.6) !important;
       }
       .cadre-more-item .icon {
         font-size: 22px;
@@ -505,9 +600,9 @@
         margin-top: 3px;
       }
 
-      /* 避免頁面內容被底部欄遮擋 */
+      /* 避免頁面內容被懸浮底部欄遮擋 */
       body {
-        padding-bottom: 76px !important;
+        padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)) !important;
       }
       @media (min-width: 769px) {
         .unified-bottom-nav {
