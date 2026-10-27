@@ -198,6 +198,7 @@
     }
 
     document.body.appendChild(nav);
+    attachInstantAppNavigation(nav);
   }
 
   // 6. 更新桌面上方 Header 導覽列
@@ -227,6 +228,7 @@
         <button onclick="globalSignOut()" class="bottom-nav-item" style="flex: none; flex-direction: row; gap: 4px; background: none; border: none;">登出</button>
       `;
     }
+    attachInstantAppNavigation(desktopNav);
   }
 
   // 7. 注入幹部專用「更多功能」抽屜/彈窗
@@ -290,6 +292,8 @@
     `;
 
     document.body.insertAdjacentHTML('beforeend', modalHtml);
+    const modalEl = document.getElementById('cadreMoreModal');
+    if (modalEl) attachInstantAppNavigation(modalEl);
   }
 
   // 8. 彈窗開啟/關閉控制
@@ -603,6 +607,7 @@
       /* 避免頁面內容被懸浮底部欄遮擋 */
       body {
         padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)) !important;
+        animation: appBodyEnter 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.1) both;
       }
       @media (min-width: 769px) {
         .unified-bottom-nav {
@@ -612,9 +617,172 @@
           padding-bottom: 30px !important;
         }
       }
+
+      /* ============================================================
+       * HTML5 原生 Cross-Document View Transitions (iOS 18+ & Chrome)
+       * 實現如同原生 APP 之 60fps 無縫切換，底欄固定不閃爍
+       * ============================================================ */
+      @view-transition {
+        navigation: auto;
+      }
+
+      /* 保持底部 Apple 懸浮玻璃島在跨頁時完全定格不動、不重新渲染 */
+      ::view-transition-group(unified-bottom-nav) {
+        animation-duration: 0s !important;
+      }
+
+      ::view-transition-old(root) {
+        animation: appViewTransitionOut 0.2s cubic-bezier(0.4, 0, 1, 1) both;
+      }
+      ::view-transition-new(root) {
+        animation: appViewTransitionIn 0.26s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+      }
+
+      @keyframes appViewTransitionOut {
+        from {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+        to {
+          opacity: 0;
+          transform: translateY(-8px) scale(0.985);
+        }
+      }
+
+      @keyframes appViewTransitionIn {
+        from {
+          opacity: 0;
+          transform: translateY(10px) scale(0.985);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes appBodyEnter {
+        from {
+          opacity: 0.2;
+          transform: translateY(4px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      /* 頂部極細 Apple 科技微光進度條 (提供即時觸覺反饋) */
+      .app-page-progress-bar {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        height: 2.5px !important;
+        width: 0%;
+        background: linear-gradient(90deg, #00F3FF, #52b788, #00F3FF) !important;
+        background-size: 200% 100% !important;
+        box-shadow: 0 0 10px #00F3FF, 0 0 4px #52b788 !important;
+        z-index: 999999 !important;
+        transition: width 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s ease !important;
+        pointer-events: none !important;
+      }
+
+      /* 非 ViewTransition 瀏覽器之平滑過渡保護罩 (無白屏閃爍) */
+      body.app-page-transitioning {
+        opacity: 0.85;
+        transform: scale(0.995);
+        filter: blur(0.6px);
+        transition: opacity 0.16s ease, transform 0.16s ease, filter 0.16s ease;
+      }
     `;
     document.head.appendChild(style);
+
+    // 注入 View Transition 標籤以啟動原生跨頁無縫過渡
+    if (!document.querySelector('meta[name="view-transition"]')) {
+      const meta = document.createElement('meta');
+      meta.name = 'view-transition';
+      meta.content = 'same-origin';
+      document.head.appendChild(meta);
+    }
   }
+
+  // 10. APP 級別即時觸覺與平滑換頁引擎 (Native-like Smooth Transition Engine)
+  const prefetchedUrls = new Set();
+  function prefetchPage(url) {
+    if (!url || url.startsWith('#') || url.startsWith('javascript:') || prefetchedUrls.has(url)) return;
+    prefetchedUrls.add(url);
+    const link = document.createElement('link');
+    link.rel = 'prefetch';
+    link.href = url;
+    document.head.appendChild(link);
+    if ('fetch' in window) {
+      fetch(url, { priority: 'low' }).catch(() => {});
+    }
+  }
+
+  function showProgressBar() {
+    let bar = document.getElementById('app-page-progress');
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'app-page-progress';
+      bar.className = 'app-page-progress-bar';
+      document.body.appendChild(bar);
+    }
+    bar.style.width = '0%';
+    bar.style.opacity = '1';
+    requestAnimationFrame(() => {
+      bar.style.width = '70%';
+    });
+  }
+
+  function completeProgressBar() {
+    const bar = document.getElementById('app-page-progress');
+    if (bar) {
+      bar.style.width = '100%';
+      setTimeout(() => {
+        bar.style.opacity = '0';
+        setTimeout(() => { bar.style.width = '0%'; }, 200);
+      }, 150);
+    }
+  }
+
+  function attachInstantAppNavigation(container) {
+    if (!container) return;
+    container.querySelectorAll('a[href]').forEach(a => {
+      const href = a.getAttribute('href');
+      if (!href || href.startsWith('#') || href.startsWith('javascript:') || href.includes('://') || a.target === '_blank') return;
+
+      // 手指接觸瞬間 / 滑鼠游標移入瞬間，立即預載頁面
+      a.addEventListener('touchstart', () => prefetchPage(href), { passive: true });
+      a.addEventListener('mouseenter', () => prefetchPage(href), { passive: true });
+
+      // 點擊事件：立即切換 active 膠囊指示器，零等待觸覺反饋
+      a.addEventListener('click', (e) => {
+        const currentNorm = window.location.pathname.replace(/\/$/, '');
+        const targetNorm = href.replace(/\/$/, '');
+        if (currentNorm === targetNorm || (targetNorm.endsWith('/index.html') && currentNorm === targetNorm.replace('/index.html', ''))) {
+          e.preventDefault();
+          return;
+        }
+
+        // 若為底部導覽列，立即切換選取狀態，產生如 Native App 的即時彈動反饋
+        if (a.classList.contains('bottom-nav-item')) {
+          container.querySelectorAll('.bottom-nav-item').forEach(el => el.classList.remove('active'));
+          a.classList.add('active');
+        }
+
+        showProgressBar();
+
+        // 觸發頁面容器平滑過渡淡出，消除白屏與生硬切換感
+        document.body.classList.add('app-page-transitioning');
+      });
+    });
+  }
+
+  // 頁面顯示時重設過渡狀態
+  window.addEventListener('pageshow', () => {
+    completeProgressBar();
+    document.body.classList.remove('app-page-transitioning');
+  });
 
   // 初始化 DOM 監聽
   if (document.readyState === 'loading') {
