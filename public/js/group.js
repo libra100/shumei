@@ -26,7 +26,9 @@ var activityItems = [...DEFAULT_ACTIVITY_ITEMS];
 auth.onAuthStateChanged((user) => {
   if (user) {
     console.log("已登入 UID:", user.uid);
-    const isLeader = sessionStorage.getItem('SHUMEI_LEADER_AUTH') === 'true' || localStorage.getItem('SHUMEI_USER_ROLE') === 'leader';
+    const isLeader = sessionStorage.getItem('SHUMEI_LEADER_AUTH') === 'true' || 
+                     localStorage.getItem('SHUMEI_LEADER_AUTH') === 'true' || 
+                     localStorage.getItem('SHUMEI_USER_ROLE') === 'leader';
     
     // Check user role to set links
     if (user.isAnonymous) {
@@ -62,6 +64,7 @@ auth.onAuthStateChanged((user) => {
 
 function signOut() {
   sessionStorage.removeItem('SHUMEI_LEADER_AUTH');
+  localStorage.removeItem('SHUMEI_LEADER_AUTH');
   localStorage.setItem('SHUMEI_USER_ROLE', '');
   localStorage.removeItem('SHUMEI_USER_ROLE');
   auth.signOut().then(() => {

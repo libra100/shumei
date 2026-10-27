@@ -279,7 +279,10 @@ function openPublishModal() {
 
 function submitPublishEvent() {
   const pwd = document.getElementById('pub-auth-pwd').value.trim();
-  if (pwd !== '1234') {
+  const isLeader = sessionStorage.getItem('SHUMEI_LEADER_AUTH') === 'true' || 
+                   localStorage.getItem('SHUMEI_LEADER_AUTH') === 'true' || 
+                   localStorage.getItem('SHUMEI_USER_ROLE') === 'leader';
+  if (!isLeader && pwd !== '1234') {
     alert("幹部授權密碼錯誤！(預設: 1234)");
     return;
   }

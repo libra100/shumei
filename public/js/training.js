@@ -16,7 +16,9 @@ const auth = firebase.auth();
 
 // 幹部身分與權限守衛
 auth.onAuthStateChanged((user) => {
-  const isLeader = sessionStorage.getItem('SHUMEI_LEADER_AUTH') === 'true' || localStorage.getItem('SHUMEI_USER_ROLE') === 'leader';
+  const isLeader = sessionStorage.getItem('SHUMEI_LEADER_AUTH') === 'true' || 
+                   localStorage.getItem('SHUMEI_LEADER_AUTH') === 'true' || 
+                   localStorage.getItem('SHUMEI_USER_ROLE') === 'leader';
   if (!user || !isLeader) {
     console.warn('[Training] 偵測到非幹部身分，無權存取研修排班與營運，導向信徒專區');
     const role = localStorage.getItem('SHUMEI_USER_ROLE');

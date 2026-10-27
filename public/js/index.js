@@ -122,8 +122,9 @@ async function submitLeaderPassword(event) {
       await auth.signInAnonymously();
     }
 
-    // 儲存幹部授權旗標
+    // 儲存幹部授權旗標 (同時儲存於 sessionStorage 與 localStorage 以保證 APP 跨頁與重新整理永不遺失)
     sessionStorage.setItem('SHUMEI_LEADER_AUTH', 'true');
+    localStorage.setItem('SHUMEI_LEADER_AUTH', 'true');
     localStorage.setItem('SHUMEI_USER_ROLE', 'leader');
 
     if (leaderPasswordModalInstance) {
@@ -146,7 +147,8 @@ async function submitLeaderPassword(event) {
 
 function signInWithGoogle() {
   showLoading();
-  sessionStorage.removeItem('SHUMEI_LEADER_AUTH');
+  sessionStorage.setItem('SHUMEI_LEADER_AUTH', 'true');
+  localStorage.setItem('SHUMEI_LEADER_AUTH', 'true');
   localStorage.setItem('SHUMEI_USER_ROLE', 'leader');
 
   const provider = new firebase.auth.GoogleAuthProvider();
@@ -164,6 +166,7 @@ function signInWithGoogle() {
 function signInAsGuest(role) {
   showLoading();
   sessionStorage.removeItem('SHUMEI_LEADER_AUTH');
+  localStorage.removeItem('SHUMEI_LEADER_AUTH');
   localStorage.setItem('SHUMEI_USER_ROLE', 'member');
 
   auth.signInAnonymously()
@@ -183,7 +186,9 @@ auth.onAuthStateChanged((user) => {
     // 若為匿名使用者：
     // 若本工作階段已驗證過小組長密碼，自動進入總覽
     if (user.isAnonymous) {
-      const isLeader = sessionStorage.getItem('SHUMEI_LEADER_AUTH') === 'true';
+      const isLeader = sessionStorage.getItem('SHUMEI_LEADER_AUTH') === 'true' || 
+                       localStorage.getItem('SHUMEI_LEADER_AUTH') === 'true' || 
+                       localStorage.getItem('SHUMEI_USER_ROLE') === 'leader';
       if (isLeader) {
         showLoading();
         window.location.href = '/youth/dashboard.html';

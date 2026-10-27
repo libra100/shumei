@@ -59,7 +59,9 @@ let cadreConfigModalInstance = null;
 // Auth Listener
 auth.onAuthStateChanged((user) => {
   if (user) {
-    const isLeader = sessionStorage.getItem('SHUMEI_LEADER_AUTH') === 'true' || localStorage.getItem('SHUMEI_USER_ROLE') === 'leader';
+    const isLeader = sessionStorage.getItem('SHUMEI_LEADER_AUTH') === 'true' || 
+                     localStorage.getItem('SHUMEI_LEADER_AUTH') === 'true' || 
+                     localStorage.getItem('SHUMEI_USER_ROLE') === 'leader';
     if (user.isAnonymous && !isLeader) {
       window.location.href = '/member/index.html';
       return;
@@ -72,6 +74,7 @@ auth.onAuthStateChanged((user) => {
 
 function signOut() {
   sessionStorage.removeItem('SHUMEI_LEADER_AUTH');
+  localStorage.removeItem('SHUMEI_LEADER_AUTH');
   localStorage.removeItem('SHUMEI_USER_ROLE');
   auth.signOut().then(() => {
     window.location.href = '/index.html';

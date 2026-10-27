@@ -72,9 +72,12 @@ function getTodayStr() {
   return `${y}-${m}-${day}`;
 }
 
-// 3. 認證檢查 (密碼 1223)
+// 3. 認證檢查 (已登入幹部自動解鎖，未登入者密碼 1223)
 function checkAuthentication() {
-  const isAuth = sessionStorage.getItem("shumei_front_auth") === "true";
+  const isLeader = sessionStorage.getItem('SHUMEI_LEADER_AUTH') === 'true' || 
+                   localStorage.getItem('SHUMEI_LEADER_AUTH') === 'true' || 
+                   localStorage.getItem('SHUMEI_USER_ROLE') === 'leader';
+  const isAuth = sessionStorage.getItem("shumei_front_auth") === "true" || isLeader;
   const authModal = document.getElementById("auth-layer");
   const mainApp = document.getElementById("front-app");
 

@@ -22,6 +22,7 @@ auth.onAuthStateChanged((user) => {
 
 function signOut() {
   sessionStorage.removeItem('SHUMEI_LEADER_AUTH');
+  localStorage.removeItem('SHUMEI_LEADER_AUTH');
   localStorage.removeItem('SHUMEI_USER_ROLE');
   auth.signOut().then(() => {
     window.location.href = '/index.html';
@@ -41,7 +42,9 @@ function initData() {
     .then((doc) => {
       pass = doc.data().pass;
       const user = auth.currentUser;
-      const isLeaderAuth = sessionStorage.getItem('SHUMEI_LEADER_AUTH') === 'true' || localStorage.getItem('SHUMEI_USER_ROLE') === 'leader';
+      const isLeaderAuth = sessionStorage.getItem('SHUMEI_LEADER_AUTH') === 'true' || 
+                           localStorage.getItem('SHUMEI_LEADER_AUTH') === 'true' || 
+                           localStorage.getItem('SHUMEI_USER_ROLE') === 'leader';
       
       // 若在登入頁已完成幹部密碼驗證，自動啟用幹部權限，免除重複彈窗
       if (isLeaderAuth) {
@@ -90,6 +93,9 @@ function login() {
 function submitQueryPassword() {
   const entered = document.getElementById('queryPasswordInput').value;
   if (entered === String(pass)) {
+    sessionStorage.setItem('SHUMEI_LEADER_AUTH', 'true');
+    localStorage.setItem('SHUMEI_LEADER_AUTH', 'true');
+    localStorage.setItem('SHUMEI_USER_ROLE', 'leader');
     document.getElementById('queryPasswordModal').style.display = 'none';
     able();
   } else {

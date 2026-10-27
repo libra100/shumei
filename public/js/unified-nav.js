@@ -28,9 +28,9 @@
     '/scheduling/'
   ];
 
-  // 1. 角色判斷
+  // 1. 角色判斷 (支援 sessionStorage 與 localStorage 雙重持久化)
   function isLeaderUser() {
-    const isAuth = sessionStorage.getItem('SHUMEI_LEADER_AUTH') === 'true';
+    const isAuth = sessionStorage.getItem('SHUMEI_LEADER_AUTH') === 'true' || localStorage.getItem('SHUMEI_LEADER_AUTH') === 'true';
     const role = localStorage.getItem('SHUMEI_USER_ROLE');
     return isAuth || role === 'leader';
   }
@@ -65,6 +65,7 @@
   window.globalSignOut = function () {
     if (confirm("確定要登出系統嗎？")) {
       sessionStorage.removeItem('SHUMEI_LEADER_AUTH');
+      localStorage.removeItem('SHUMEI_LEADER_AUTH');
       localStorage.removeItem('SHUMEI_USER_ROLE');
       try {
         if (typeof firebase !== 'undefined' && firebase.auth) {
