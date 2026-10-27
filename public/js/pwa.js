@@ -77,4 +77,12 @@
     document.documentElement.classList.add('pwa-standalone');
     console.log('[PWA] 目前正處於獨立 Web App 全螢幕模式中運行');
   }
+
+  // 5. 全站自動載入統一導覽與角色分流組件 (unified-nav.js)
+  if (!window.__SHUMEI_UNIFIED_NAV_LOADED__) {
+    const navScript = document.createElement('script');
+    navScript.src = '/js/unified-nav.js';
+    navScript.defer = true;
+    document.head.appendChild(navScript);
+  }
 })();

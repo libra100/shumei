@@ -27,6 +27,8 @@
       { "source": "/natural-farm-admin", "destination": "/farm/natural-farm-admin.html", "type": 301 },
       { "source": "/change.html", "destination": "/seed/change.html", "type": 301 },
       { "source": "/change", "destination": "/seed/change.html", "type": 301 },
+      { "source": "/swap.html", "destination": "/seed/swap.html", "type": 301 },
+      { "source": "/swap", "destination": "/seed/swap.html", "type": 301 },
       { "source": "/training.html", "destination": "/activities/training.html", "type": 301 },
       { "source": "/training", "destination": "/activities/training.html", "type": 301 },
       { "source": "/jyorei.html", "destination": "/activities/jyorei.html", "type": 301 },

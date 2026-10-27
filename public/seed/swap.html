@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>秀明自然農法 - 種子交換會現場登記與暫時倉系統</title>
+  
+  <!-- PWA & Meta settings -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#1b4332">
+  <link rel="icon" href="/logo.png" type="image/png">
+
+  <!-- Google Fonts & Bootstrap 5 & FontAwesome -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- App & Natural Farm CSS -->
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/natural-farm.css">
+  
+  <!-- QR Code & Scanner dependencies -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  
+  <!-- Firebase Compatibility Libraries -->
+  <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-firestore-compat.js"></script>
+
+  <style>
+    .vault-status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+    .status-pending {
+      background: rgba(255, 161, 0, 0.2);
+      color: #ffa100;
+      border: 1px solid rgba(255, 161, 0, 0.4);
+    }
+    .status-approved {
+      background: rgba(82, 183, 136, 0.2);
+      color: #52b788;
+      border: 1px solid rgba(82, 183, 136, 0.4);
+    }
+    .status-archived {
+      background: rgba(0, 243, 255, 0.2);
+      color: #00f3ff;
+      border: 1px solid rgba(0, 243, 255, 0.4);
+    }
+    .status-rejected {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.4);
+    }
+    @media print {
+      body * {
+        visibility: hidden;
+      }
+      #printable-thermal-label, #printable-thermal-label * {
+        visibility: visible;
+      }
+      #printable-thermal-label {
+        position: fixed;
+        left: 0;
+        top: 0;
+        width: 100mm !important;
+        height: 60mm !important;
+        margin: 0 !important;
+        padding: 4mm !important;
+        border: 2px solid #000 !important;
+        background: #fff !important;
+        color: #000 !important;
+      }
+    }
+  </style>
+</head>
+<body class="natural-farm-body">
+
+  <!-- Global Glass Toast Notification Container -->
+  <div id="toastContainer" class="position-fixed top-0 start-50 translate-middle-x p-3" style="z-index: 99999; max-width: 90vw; width: 420px;"></div>
+
+  <!-- Top App Bar -->
+  <header class="farm-top-nav sticky-top">
+    <div class="container d-flex justify-content-between align-items-center">
+      <div class="d-flex align-items-center gap-2">
+        <a href="/farm/natural-farm.html" class="farm-brand">
+          <div class="farm-brand-logo">
+            <img src="/logo.png" alt="Shumei Logo">
+          </div>
+          <div>
+            <div style="font-size: 1.05rem; font-weight: 700; color: #fff;">種子交換會 ． 暫時倉系統</div>
+            <div style="font-size: 0.72rem; color: var(--farm-cyan-neon); font-weight: 600;">Seed Swap Intake & Temp Vault</div>
+          </div>
+        </a>
+      </div>
+
+      <!-- Mode Switcher Buttons -->
+      <div class="d-flex align-items-center gap-2">
+        <button id="btn-mode-public" class="btn btn-sm btn-primary-custom rounded-pill px-3 py-1 interactive" onclick="switchViewMode('public')">
+          <i class="fa-solid fa-hand-holding-hand me-1"></i> 現場民眾登記
+        </button>
+        <button id="btn-mode-staff" class="btn btn-sm btn-outline-light rounded-pill px-3 py-1 interactive" onclick="switchViewMode('staff')">
+          <i class="fa-solid fa-boxes-packing me-1"></i> 交流會暫時倉 (<span id="top-vault-count">0</span>)
+        </button>
+        <a href="/farm/natural-farm.html" class="btn btn-sm btn-outline-secondary rounded-pill px-2 py-1 text-light">
+          <i class="fa-solid fa-arrow-left"></i>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container py-4">
+
+    <!-- ==========================================
+         VIEW 1: 現場觀眾登記端 (PUBLIC INTAKE)
+         ========================================== -->
+    <section id="view-public" class="tab-pane-content">
+      <div class="row justify-content-center">
+        <div class="col-lg-8">
+          
+          <!-- Banner Card -->
+          <div class="farm-card mb-4 p-4 border border-success border-opacity-50 position-relative overflow-hidden">
+            <div class="position-absolute top-0 end-0 m-3 opacity-25">
+              <i class="fa-solid fa-seedling" style="font-size: 6rem; color: var(--farm-green-400);"></i>
+            </div>
+            <span class="farm-badge-pill green mb-2"><i class="fa-solid fa-handshake me-1"></i> 現場互換 ． 善意分享</span>
+            <h2 class="h3 fw-bold text-white mb-2">歡迎帶來您的自家採種種子！</h2>
+            <p class="text-light small mb-3">
+              秀明自然農法強調自家採種的傳承與多樣性。請填寫您今天帶來的種子資料，完成登記後將種子交付現場「暫時倉收件處」，活動結束經保種專家整理核對後，將正式入庫並生成官方 NamingRule 編碼。
+            </p>
+            <div class="d-flex flex-wrap gap-2 text-warning small">
+              <span><i class="fa-solid fa-shield-halved me-1"></i> 本次種子先入【交流會暫時倉】</span>
+              <span class="text-muted">|</span>
+              <span><i class="fa-solid fa-medal text-success me-1"></i> 成功登記可獲 <strong>+50 Karma</strong> 綠色公民積分</span>
+            </div>
+          </div>
+
+          <!-- Intake Form -->
+          <div class="farm-card p-4">
+            <h4 class="h5 fw-bold text-white mb-3 border-bottom border-secondary border-opacity-25 pb-2">
+              <i class="fa-solid fa-pen-to-square text-success me-2"></i>現場種子登記表
+            </h4>
+
+            <form id="swapIntakeForm" onsubmit="submitSeedIntake(event)">
+              
+              <!-- 1. 提供者基本資料 -->
+              <div class="mb-4">
+                <h6 class="text-warning fw-bold small text-uppercase mb-2"><i class="fa-solid fa-user me-1"></i> 1. 提供者資料</h6>
+                <div class="row g-2">
+                  <div class="col-md-6">
+                    <label class="form-label small text-light">提供者姓名 / 稱呼 *</label>
+                    <input type="text" id="intakeProviderName" class="form-control" placeholder="例：林健國、陳大姐" required>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label small text-light">聯絡電話 / 手機 *</label>
+                    <input type="tel" id="intakePhone" class="form-control" placeholder="例：0912-345-678" required>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label small text-light">電子信箱 (選填，寄送核銷紀錄)</label>
+                    <input type="email" id="intakeEmail" class="form-control" placeholder="example@email.com">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label small text-light">隸屬分會 / 地區 *</label>
+                    <select id="intakeRegion" class="form-select bg-dark text-light border-secondary" required>
+                      <option value="TW01">新北北海岸 (淡水/三芝)</option>
+                      <option value="TW02">宜蘭員山純淨水源區</option>
+                      <option value="TW03">桃園大溪大漢溪畔</option>
+                      <option value="TW04">新竹關西丘陵區</option>
+                      <option value="TW05" selected>南投埔里自然農法示範園區</option>
+                      <option value="TW06">台南後壁無米樂產區</option>
+                      <option value="TW07">高雄旗美平原</option>
+                      <option value="TW08">屏東大樹水源區</option>
+                      <option value="TW09">花蓮壽豐無污染淨土</option>
+                      <option value="TW10">台東池上日照田區</option>
+                      <option value="OTHER">其他地區 / 自家菜園</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 2. 種子基本資料 -->
+              <div class="mb-4">
+                <h6 class="text-warning fw-bold small text-uppercase mb-2"><i class="fa-solid fa-dna me-1"></i> 2. 種子基本資料</h6>
+                <div class="row g-2">
+                  <div class="col-md-6">
+                    <label class="form-label small text-light">作物名稱 *</label>
+                    <input type="text" id="intakeSeedName" class="form-control" placeholder="例：黑柿番茄、越光米、青皮黑豆" required>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label small text-light">植物學科別 *</label>
+                    <select id="intakeFamily" class="form-select bg-dark text-light border-secondary" required>
+                      <option value="SO">🍅 茄科 (番茄、茄子、甜椒、辣椒)</option>
+                      <option value="PO">🌾 禾本科 (水稻、玉米、小麥)</option>
+                      <option value="FA">🫘 豆科 (黑豆、毛豆、菜豆、花生)</option>
+                      <option value="CU">🥒 葫蘆科 (南瓜、小黃瓜、苦瓜、冬瓜)</option>
+                      <option value="BR">🥬 十字花科 (白蘿蔔、高麗菜、芥菜)</option>
+                      <option value="AS">🌻 菊科 (萵苣、山茼蒿、向日葵)</option>
+                      <option value="MA">🌺 錦葵科 (秋葵、洛神葵)</option>
+                      <option value="LA">🌿 唇形科 (九層塔、紫蘇、薄荷)</option>
+                      <option value="OTHER">🌱 其他科別</option>
+                    </select>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label small text-light">品種特徵 / 俗名 (選填)</label>
+                    <input type="text" id="intakeVariety" class="form-control" placeholder="例：在來黑柿、青仁、牛角果形">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label small text-light">採收年月 *</label>
+                    <input type="month" id="intakeHarvestDate" class="form-control" value="2026-05" required>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label small text-light">自家採種世代 *</label>
+                    <select id="intakeGeneration" class="form-select bg-dark text-light border-secondary" required>
+                      <option value="1">第 1 代 (初次留種)</option>
+                      <option value="2">第 2 代</option>
+                      <option value="3">第 3 代</option>
+                      <option value="4">第 4 代</option>
+                      <option value="5" selected>第 5 代 (風土適應良好)</option>
+                      <option value="8">第 8 代以上 (長期留種健壯株)</option>
+                      <option value="0">祖傳世代 / 代數不詳</option>
+                    </select>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label small text-light">採種農法規範 *</label>
+                    <select id="intakeMethod" class="form-select bg-dark text-light border-secondary" required>
+                      <option value="S">秀明自然農法 (無農藥無肥料自家採種)</option>
+                      <option value="N">自然農法 (自然培育)</option>
+                      <option value="O">有機農法 (無化學資材)</option>
+                      <option value="F">友善友鄰自留種</option>
+                    </select>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label small text-light">帶來數量 (包數) *</label>
+                    <input type="number" id="intakePackages" class="form-control" min="1" max="100" value="5" required>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label small text-light">估計總重量 (公克重，選填)</label>
+                    <input type="number" id="intakeGrams" class="form-control" placeholder="例：25 (約5g/包)">
+                  </div>
+                </div>
+              </div>
+
+              <!-- 3. 生長特性與備註故事 -->
+              <div class="mb-4">
+                <h6 class="text-warning fw-bold small text-uppercase mb-2"><i class="fa-solid fa-comment-dots me-1"></i> 3. 田區特性與生長故事</h6>
+                <div class="mb-2">
+                  <label class="form-label small text-light">田間抗性與耐候特質 (可複選)：</label>
+                  <div class="d-flex flex-wrap gap-2">
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" id="trait-drought" value="耐乾旱">
+                      <label class="form-check-label text-light small" for="trait-drought">☀️ 耐乾旱</label>
+                    </div>
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" id="trait-rain" value="耐豪雨高濕" checked>
+                      <label class="form-check-label text-light small" for="trait-rain">🌧️ 耐豪雨高濕</label>
+                    </div>
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" id="trait-deep-root" value="直根系抗倒伏" checked>
+                      <label class="form-check-label text-light small" for="trait-deep-root">🌱 直根系抗倒伏</label>
+                    </div>
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" id="trait-sweet" value="純淨甘甜">
+                      <label class="form-check-label text-light small" for="trait-sweet">😋 純淨甘甜</label>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <label class="form-label small text-light">農友手記與留種心得 (選填)：</label>
+                  <textarea id="intakeNotes" class="form-control" rows="2" placeholder="分享這批種子在您的田區生長時的表現，例如抗病情形、長輩傳承故事或口感特色..."></textarea>
+                </div>
+              </div>
+
+              <div class="p-3 rounded-3 bg-dark bg-opacity-50 border border-secondary mb-3 small text-muted">
+                <i class="fa-solid fa-info-circle text-warning me-1"></i>
+                點擊送出後，系統將為您生成「暫時倉收件憑證與 QR Code」，並先存入本次「交流會暫時倉」，活動結束後由保種小組統一檢驗入庫。
+              </div>
+
+              <button type="submit" id="btnSubmitIntake" class="btn btn-primary-custom w-100 py-2.5 fs-6 interactive">
+                <i class="fa-solid fa-paper-plane me-1"></i> 送出登記並存入交換會暫時倉 (+50 Karma)
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         VIEW 2: 交流會暫時倉管理端 (TEMP VAULT ADMIN)
+         ========================================== -->
+    <section id="view-staff" class="tab-pane-content" style="display:none;">
+      
+      <!-- Top Overview Bar -->
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+        <div>
+          <span class="badge bg-warning text-dark font-mono"><i class="fa-solid fa-boxes-packing me-1"></i> 實體暫存管制區</span>
+          <h3 class="h4 fw-bold text-white mb-0 mt-1">本次交換會 ． 暫時倉作業看板</h3>
+          <p class="text-muted small mb-0">所有現場收集之種子統一列管於暫時倉，活動結束檢驗完畢後方可正式入庫。</p>
+        </div>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-outline-info rounded-pill interactive" onclick="openScanModal()">
+            <i class="fa-solid fa-camera me-1"></i> 掃碼核驗收件
+          </button>
+          <button class="btn btn-sm btn-outline-light rounded-pill interactive" onclick="exportTempVaultCSV()">
+            <i class="fa-solid fa-file-csv me-1"></i> 匯出暫存清單 CSV
+          </button>
+        </div>
+      </div>
+
+      <!-- KPI Summary Cards -->
+      <div class="row g-3 mb-4">
+        <div class="col-6 col-lg-3">
+          <div class="farm-card p-3 h-100">
+            <div class="text-muted small">暫時倉收集總數</div>
+            <div class="h3 fw-bold text-white mb-0" id="kpi-total-items">0 <span class="fs-6 text-muted">批</span></div>
+            <div class="text-success small mt-1" id="kpi-total-packages">共 0 包</div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="farm-card p-3 h-100">
+            <div class="text-muted small">待整理檢驗</div>
+            <div class="h3 fw-bold text-warning mb-0" id="kpi-pending-items">0 <span class="fs-6 text-muted">批</span></div>
+            <div class="text-warning small mt-1">等待活動結束整理</div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="farm-card p-3 h-100">
+            <div class="text-muted small">已審核入正式庫</div>
+            <div class="h3 fw-bold text-info mb-0" id="kpi-archived-items">0 <span class="fs-6 text-muted">批</span></div>
+            <div class="text-info small mt-1">已配發 NamingRule 碼</div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="farm-card p-3 h-100">
+            <div class="text-muted small">淘汰/退回</div>
+            <div class="h3 fw-bold text-danger mb-0" id="kpi-rejected-items">0 <span class="fs-6 text-muted">批</span></div>
+            <div class="text-muted small mt-1">受潮或不符留種規範</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filter and Search Bar -->
+      <div class="farm-card p-3 mb-3">
+        <div class="row g-2 align-items-center">
+          <div class="col-md-5">
+            <div class="input-group input-group-sm">
+              <span class="input-group-text bg-dark border-secondary text-muted"><i class="fa-solid fa-search"></i></span>
+              <input type="text" id="vaultSearchInput" class="form-control bg-dark text-light border-secondary" placeholder="搜尋作物名、提供者、流水號或產地..." oninput="filterVaultList()">
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <select id="vaultStatusFilter" class="form-select form-select-sm bg-dark text-light border-secondary" onchange="filterVaultList()">
+              <option value="all">所有狀態 (待整理 / 已入庫 / 淘汰)</option>
+              <option value="pending_review" selected>🟡 待整理檢驗 (Pending)</option>
+              <option value="archived_to_bank">🔵 已正式入庫 (Archived)</option>
+              <option value="rejected">🔴 淘汰退回 (Rejected)</option>
+            </select>
+          </div>
+          <div class="col-6 col-md-4 text-end text-muted small">
+            顯示 <strong class="text-white" id="displayed-vault-count">0</strong> 筆暫存項目
+          </div>
+        </div>
+      </div>
+
+      <!-- Temp Vault Table -->
+      <div class="farm-card p-0 overflow-hidden">
+        <div class="table-responsive">
+          <table class="table table-dark table-hover align-middle mb-0">
+            <thead class="table-secondary text-light small">
+              <tr>
+                <th>暫存流水號</th>
+                <th>作物名稱 / 植物科別</th>
+                <th>提供農友</th>
+                <th>留種世代</th>
+                <th>採收日期 / 產地</th>
+                <th>數量</th>
+                <th>狀態</th>
+                <th class="text-end">操作 (整理入庫)</th>
+              </tr>
+            </thead>
+            <tbody id="tempVaultTableBody">
+              <!-- Dynamically populated by swap.js -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ==========================================
+       ALL INTERACTIVE MODALS
+       ========================================== -->
+
+  <!-- 1. Intake Success Modal (with QR Code) -->
+  <div class="modal fade" id="intakeSuccessModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content farm-modal-dialog">
+        <div class="farm-modal-header d-flex justify-content-between align-items-center">
+          <h5 class="modal-title fw-bold text-white"><i class="fa-solid fa-circle-check text-success me-2"></i>登記完成！已存入交換會暫時倉</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="farm-modal-body text-center">
+          <div class="badge bg-warning text-dark font-mono fs-6 px-3 py-1 mb-2" id="successVoucherCode">
+            TEMP-SWAP-2026-X001
+          </div>
+          <p class="text-light small mb-3">
+            感謝您分享自家採種種子！您的種子已登錄於<strong>「本次交流會暫時倉」</strong>。<br>
+            請持手機 QR Code 將實體種子包交付現場服務台完成初驗收件。
+          </p>
+
+          <!-- QR Code Container -->
+          <div class="p-3 bg-white rounded-3 d-inline-block shadow-lg mb-3">
+            <div id="intakeQrCodeContainer"></div>
+          </div>
+
+          <div class="p-2 rounded-3 bg-dark bg-opacity-75 border border-success border-opacity-50 small text-success mb-3">
+            <i class="fa-solid fa-award me-1"></i> 已為您注入 <strong>+50 Karma</strong> 綠色公民點數！
+          </div>
+
+          <div class="d-flex justify-content-center gap-2">
+            <button class="btn btn-sm btn-outline-light rounded-pill px-4" data-bs-dismiss="modal">
+              完成關閉
+            </button>
+            <button class="btn btn-sm btn-primary-custom rounded-pill px-4" onclick="switchViewMode('staff'); bootstrap.Modal.getInstance(document.getElementById('intakeSuccessModal')).hide();">
+              查看暫時倉看板
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Staff QR Scanner Modal -->
+  <div class="modal fade" id="scanModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content farm-modal-dialog">
+        <div class="farm-modal-header d-flex justify-content-between align-items-center">
+          <h5 class="modal-title fw-bold text-white"><i class="fa-solid fa-camera text-info me-2"></i>現場掃碼核驗種子</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="farm-modal-body text-center">
+          <p class="text-muted small mb-2">對準民眾出示的暫存收件 QR Code 即可快速檢索核對：</p>
+          <div id="swap-qr-reader" style="width: 100%; border-radius: 12px; overflow: hidden;" class="mb-3"></div>
+          <div class="input-group input-group-sm mb-2">
+            <input type="text" id="manualScanInput" class="form-control" placeholder="或手動輸入暫存流水號 (TEMP-SWAP-...)">
+            <button class="btn btn-primary-custom" onclick="manualLookupCode()">搜尋</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. Move To Official Vault & Print Label Modal -->
+  <div class="modal fade" id="processVaultModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content farm-modal-dialog">
+        <div class="farm-modal-header d-flex justify-content-between align-items-center">
+          <h5 class="modal-title fw-bold text-white"><i class="fa-solid fa-box-archive text-warning me-2"></i>活動結束整理 ． 正式移入種子庫作業</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="farm-modal-body">
+          <form id="processVaultForm" onsubmit="submitArchiveToBank(event)">
+            <input type="hidden" id="processItemId">
+
+            <!-- Review Summary -->
+            <div class="p-3 rounded-3 bg-dark bg-opacity-50 border border-secondary mb-3">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <h5 class="fw-bold text-white mb-0" id="processSeedNameTitle">黑柿留種番茄</h5>
+                <span class="badge bg-warning text-dark font-mono" id="processTempCode">TEMP-SWAP-2026-X001</span>
+              </div>
+              <div class="small text-muted" id="processProviderMeta">提供者：林健國 ｜ 採收：2026年05月 ｜ 產地：新北北海岸</div>
+            </div>
+
+            <!-- Quality Inspection -->
+            <div class="row g-2 mb-3">
+              <div class="col-md-4">
+                <label class="form-label small text-light">物理品質審查結果 *</label>
+                <select id="processQualityResult" class="form-select bg-dark text-light border-secondary" required onchange="handleQualityChange(this.value)">
+                  <option value="pass">🟢 檢驗合格 (乾燥完整、無蟲蛀)</option>
+                  <option value="reject">🔴 不符規範 (受潮發霉 / 非自留種)</option>
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small text-light">正式核定分裝包數 *</label>
+                <input type="number" id="processVerifiedPackages" class="form-control" min="1" value="5" required>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small text-light">正式實體入庫儲位 *</label>
+                <select id="processStorageSpace" class="form-select bg-dark text-light border-secondary" required>
+                  <option value="ST-01">ST-01 低溫冷藏櫃 (4°C, 32% RH)</option>
+                  <option value="ST-02">ST-02 雙層蒸發陶罐庫 (14°C, 55% RH)</option>
+                  <option value="ST-03">ST-03 竹炭微通風地窖 (12°C, 45% RH)</option>
+                  <option value="ST-04">ST-04 常溫保存庫 (流通暫存)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Official NamingRule Code Generation -->
+            <div class="mb-3">
+              <label class="form-label small text-light d-flex justify-content-between">
+                <span>官方 14~18 碼 NamingRule 編碼 *</span>
+                <span class="text-info cursor-pointer" onclick="regenerateOfficialCode()"><i class="fa-solid fa-rotate me-1"></i>重新依規則推導</span>
+              </label>
+              <input type="text" id="processOfficialCode" class="form-control font-mono fw-bold text-warning" placeholder="例：SO-LY-S-TW01-2605-001" required>
+              <div class="form-text text-muted" style="font-size: 0.72rem;">
+                公式：<code>[科屬大類]-[品種代碼]-[農法碼]-[產地區域]-[採種年月]-[批號流水號]</code>，經由 Seed-Bank 規格驗證。
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label small text-light">檢驗員簽名 / 備註筆記：</label>
+              <input type="text" id="processInspectorNotes" class="form-control" placeholder="例：種子飽滿充實，已通過目檢與浮水檢測，由保種人林幹部驗收">
+            </div>
+
+            <div class="d-flex gap-2">
+              <button type="submit" id="btnConfirmArchive" class="btn btn-primary-custom flex-grow-1 py-2 interactive">
+                <i class="fa-solid fa-check-double me-1"></i> 核准正式入庫 (移出暫時倉)
+              </button>
+              <button type="button" class="btn btn-outline-warning py-2 interactive" onclick="previewAndPrintLabel()">
+                <i class="fa-solid fa-print me-1"></i> 預覽 100x60mm 標籤
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. Printable 100mm x 60mm Thermal Label Preview Modal -->
+  <div class="modal fade" id="labelPreviewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content farm-modal-dialog">
+        <div class="farm-modal-header d-flex justify-content-between align-items-center">
+          <h5 class="modal-title fw-bold text-white"><i class="fa-solid fa-tag text-warning me-2"></i>標準熱感應標籤 (100mm × 60mm)</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="farm-modal-body text-center p-4">
+          
+          <!-- Physical Thermal Label Card -->
+          <div id="printable-thermal-label" class="bg-white text-dark p-3 rounded-2 shadow-sm text-start mb-3 mx-auto" style="width: 380px; min-height: 220px; border: 2px solid #000; font-family: sans-serif;">
+            <div class="d-flex justify-content-between align-items-center border-bottom border-dark pb-1 mb-2">
+              <div>
+                <strong style="font-size: 11px; letter-spacing: 0.5px;">秀明自然農法協會 ． 自家採種</strong><br>
+                <small style="font-size: 8px; color: #555; text-transform: uppercase;">Shumei Seed Exchange Official</small>
+              </div>
+              <span class="badge bg-dark text-white font-mono" id="labelGenBadge" style="font-size: 10px;">F5 代</span>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-start gap-2">
+              <div style="flex: 1; font-size: 9.5px; line-height: 1.4;">
+                <div class="fw-bold text-dark fs-6" id="labelCropName">黑柿留種番茄</div>
+                <div class="fst-italic text-muted mb-1" id="labelLatinName" style="font-size: 8.5px;">Solanum lycopersicum</div>
+                <div><strong>留種世代：</strong><span id="labelGenText">第 5 代自家留種</span></div>
+                <div><strong>採收年份：</strong><span id="labelHarvestYear">2026 年 05 月</span></div>
+                <div><strong>提供農友：</strong><span id="labelHarvester">林健國</span></div>
+                <div><strong>產地區域：</strong><span id="labelRegion">新北北海岸 (TW01)</span></div>
+                <div><strong>分裝規格：</strong>約 5g / 包 (儲位: <span id="labelStorageId">ST-01</span>)</div>
+              </div>
+
+              <!-- Optical QR Code -->
+              <div class="text-center p-1 border border-dark rounded bg-white">
+                <div id="labelQrContainer"></div>
+                <div style="font-size: 7px; font-weight: bold; margin-top: 2px;">光學溯源 QR</div>
+              </div>
+            </div>
+
+            <div class="mt-2 pt-1 border-top border-dark border-dashed d-flex justify-content-between align-items-center font-mono" style="font-size: 9px;">
+              <strong id="labelShumeiCode">[SO-LY-S-TW01-2605-001]</strong>
+              <span style="font-size: 8px; font-weight: bold; color: #1b4332;">無農藥 ． 無肥料</span>
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-center gap-2">
+            <button class="btn btn-sm btn-success rounded-pill px-4" onclick="window.print()">
+              <i class="fa-solid fa-print me-1"></i> 列印標籤 (Print)
+            </button>
+            <button class="btn btn-sm btn-outline-light rounded-pill px-3" data-bs-dismiss="modal">
+              關閉
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="/js/swap.js"></script>
+</body>
+</html>
