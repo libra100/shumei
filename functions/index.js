@@ -172,9 +172,12 @@ exports.processLineEvent = onMessagePublished(
     const isLineageKeyword = /介紹人|世話人|組長|下線|靈線|電話|住址|地址/.test(userMessage);
     const isSeminarKeyword = /登記|紀錄|座談|回報/.test(userMessage);
     const isActivityCmd = /^(?:活動|活動查詢|查詢活動|近期活動|活動日程|本月活動|下月活動|活動清單|活動負責人)$/.test(userMessage.trim()) || userMessage.includes("近期活動") || userMessage.includes("活動日程") || userMessage.includes("活動負責人") || (isPrivateChat && userMessage.trim() === "活動");
+    const isFeedbackQueryCmd = /^(?:查看建議|升級建議|建議清單|待確認建議|查看反饋|反饋清單)$/.test(userMessage.trim());
+    const isFeedbackCmd = /^(?:建議|反饋|許願|功能建議|升級建議|回報問題|系統建議)(?:\s+|：|:)(.+)$/i.test(userMessage.trim()) ||
+      (/^(?:我希望|希望能|能不能|可不可以|可以請小助理|希望小助理|許願)/.test(userMessage.trim()) && userMessage.trim().length >= 4);
 
     // 個人對話 (1對1) 或圖片一律處理；群組或聊天室則需標記機器人或命中關鍵字
-    const isForBot = isPrivateChat || isTagged || isStats || isEditorAuthCmd || isEditorListCmd || isJyoreiKeyword || isLineageKeyword || isSeminarKeyword || isActivityCmd || isImage;
+    const isForBot = isPrivateChat || isTagged || isStats || isEditorAuthCmd || isEditorListCmd || isJyoreiKeyword || isLineageKeyword || isSeminarKeyword || isActivityCmd || isFeedbackCmd || isFeedbackQueryCmd || isImage;
 
     if (!isForBot) {
       return; // 忽略群組中的一般閒聊，不回覆且不呼叫 AI
@@ -379,6 +382,90 @@ exports.processLineEvent = onMessagePublished(
         }]
       });
       return;
+    }
+
+    // ==========================================
+    // 功能零點五：使用者功能升級建議與反饋收集 (每月 26 日統一推播管理員)
+    // ==========================================
+    if (isFeedbackQueryCmd) {
+      if (!isPrivateChat) {
+        await client.replyMessage({
+          replyToken,
+          messages: [{ type: "text", text: "🔒 為保護隱私與管理秩序，請在與我的 1 對 1 私聊中查看建議清單喔！" }]
+        });
+        return;
+      }
+      const authStatus = await checkEditorPermission(userId);
+      if (!authStatus.isEditor) {
+        await client.replyMessage({
+          replyToken,
+          messages: [{ type: "text", text: "🔒 權限不足：查看使用者升級建議僅限授權幹部查詢。" }]
+        });
+        return;
+      }
+      try {
+        const feedbackSnap = await db.collection("system_feedbacks")
+          .where("status", "==", "pending")
+          .orderBy("createdAt", "desc")
+          .limit(15)
+          .get();
+
+        if (feedbackSnap.empty) {
+          await client.replyMessage({
+            replyToken,
+            messages: [{ type: "text", text: "📋【使用者功能升級建議】\n\n目前系統中尚無待確認的升級建議喔！✨" }]
+          });
+          return;
+        }
+
+        let listText = "📋【使用者功能升級建議清單】\n(將於每月 26 日排程統一推播給幹部)\n\n";
+        let idx = 1;
+        feedbackSnap.forEach(doc => {
+          const d = doc.data();
+          const user = d.userName || "使用者";
+          const content = d.content || "";
+          listText += `${idx}. ${user}：\n   「${content}」\n\n`;
+          idx++;
+        });
+        listText += `共計 ${feedbackSnap.size} 則待確認建議。\n💡 幹部與管理員將於每月 26 日活動籌備提醒時統一收到彙整報告！`;
+
+        await client.replyMessage({
+          replyToken,
+          messages: [{ type: "text", text: listText.trim() }]
+        });
+        return;
+      } catch (err) {
+        logger.error("Error fetching feedback list", err);
+      }
+    }
+
+    if (isFeedbackCmd) {
+      try {
+        let content = userMessage.trim();
+        const prefixMatch = userMessage.trim().match(/^(?:建議|反饋|許願|功能建議|升級建議|回報問題|系統建議)(?:\s+|：|:)(.+)$/i);
+        if (prefixMatch && prefixMatch[1]) {
+          content = prefixMatch[1].trim();
+        }
+
+        await db.collection("system_feedbacks").add({
+          userName,
+          userId: userId || "",
+          content,
+          status: "pending",
+          source: isPrivateChat ? "line_private" : "line_group",
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        const replyText = `📝 感謝您的寶貴反饋！\n\n小助理已為您記錄此項功能調整需求：「${content}」\n\n我們已將其列入「下次系統升級確認清單」中，管理員將於每月 26 日排程統一進行評估與規劃更新！感謝您一同讓小助理更完善～🙏`;
+
+        await client.replyMessage({
+          replyToken,
+          messages: [{ type: "text", text: replyText }]
+        });
+        return;
+      } catch (err) {
+        logger.error("Error recording user feedback", err);
+      }
     }
 
     // ==========================================

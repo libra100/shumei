@@ -417,24 +417,29 @@ function getActiveBoundCadresAndAdmins(editorsData = {}, adminsData = {}) {
  * 組合「每月 26 日活動規劃與設定負責人提醒」LINE 訊息
  * @param {number} nextYear
  * @param {number} nextMonth
+ * @param {Object} [taipeiDate=null]
+ * @param {Array} [pendingFeedbacks=[]] 待確認之使用者升級建議清單
  * @returns {string}
  */
-function buildMonthlyPlanningMessage(nextYear, nextMonth, taipeiDate = null) {
+function buildMonthlyPlanningMessage(nextYear, nextMonth, taipeiDate = null, pendingFeedbacks = []) {
   const dayStr = (taipeiDate && taipeiDate.day === 26) ? '今天是本月 26 日' : (taipeiDate ? `今天是 ${taipeiDate.month} 月 ${taipeiDate.day} 日` : '今天是本月 26 日');
-  return `📅【秀明活動籌備提醒 — ${nextYear} 年 ${nextMonth} 月活動規劃】
+  let msg = `📅【秀明活動籌備提醒 — ${nextYear} 年 ${nextMonth} 月活動規劃】\n\n各位幹部與活動負責人好：\n${dayStr}，提醒您該開始規劃【${nextYear} 年 ${nextMonth} 月】的各項活動日程囉！\n\n🎯 籌備重點事項：\n1. 規劃確認下個月份之集會、青年座談、研修與農法活動日期\n2. 進入活動系統發布新活動，並確實設定每場活動之「負責人」\n3. 設定完成後，系統將在活動即將舉行前，自動透過 LINE 推播提醒負責人進行事前預備！\n\n🔗 活動發布與管理頁面：\nhttps://shumei-2025.web.app/activities/events.html`;
 
-各位幹部與活動負責人好：
-${dayStr}，提醒您該開始規劃【${nextYear} 年 ${nextMonth} 月】的各項活動日程囉！
+  if (Array.isArray(pendingFeedbacks) && pendingFeedbacks.length > 0) {
+    msg += `\n\n💡【本月使用者功能升級建議彙整】\n小助理在此期間共收集到 ${pendingFeedbacks.length} 則待確認建議：\n`;
+    pendingFeedbacks.slice(0, 5).forEach((fb, idx) => {
+      const user = fb.userName || '成員';
+      const content = fb.content || '';
+      msg += `${idx + 1}. ${user}：「${content}」\n`;
+    });
+    if (pendingFeedbacks.length > 5) {
+      msg += `...以及其他 ${pendingFeedbacks.length - 5} 則建議。\n`;
+    }
+    msg += `管理員可於本次月度籌備會議中一併討論評估！`;
+  }
 
-🎯 籌備重點事項：
-1. 規劃確認下個月份之集會、青年座談、研修與農法活動日期
-2. 進入活動系統發布新活動，並確實設定每場活動之「負責人」
-3. 設定完成後，系統將在活動即將舉行前，自動透過 LINE 推播提醒負責人進行事前預備！
-
-🔗 活動發布與管理頁面：
-https://shumei-2025.web.app/activities/events.html
-
-願大家在各項聖業與奉事中充滿神慈光芒與喜悅！🙏✨`;
+  msg += `\n\n願大家在各項聖業與奉事中充滿神慈光芒與喜悅！🙏✨`;
+  return msg;
 }
 
 /**
@@ -624,20 +629,32 @@ async function sendMonthlyPlanningReminder({ db, client, dryRun = false, forceDa
 
   logger.info(`[MonthlyReminder] Triggered at Taipei date: ${taipeiDate.year}-${taipeiDate.month}-${taipeiDate.day}, Next month: ${nextYear}-${nextMonth}`);
 
-  // 1. 讀取 info/editors 與 info/admins
-  const [editorsSnap, adminsSnap] = await Promise.all([
+  // 1. 讀取 info/editors、info/admins 與待處理之 system_feedbacks
+  const feedbackCol = db.collection('system_feedbacks');
+  const feedbackPromise = (feedbackCol && typeof feedbackCol.where === 'function')
+    ? feedbackCol.where('status', '==', 'pending').get().catch(() => null)
+    : Promise.resolve(null);
+
+  const [editorsSnap, adminsSnap, feedbackSnap] = await Promise.all([
     db.collection('info').doc('editors').get().catch(() => null),
-    db.collection('info').doc('admins').get().catch(() => null)
+    db.collection('info').doc('admins').get().catch(() => null),
+    feedbackPromise
   ]);
 
   const editorsData = editorsSnap && editorsSnap.exists ? editorsSnap.data() : {};
   const adminsData = adminsSnap && adminsSnap.exists ? adminsSnap.data() : {};
+  const pendingFeedbacks = [];
+  if (feedbackSnap && !feedbackSnap.empty) {
+    feedbackSnap.forEach(doc => {
+      pendingFeedbacks.push({ id: doc.id, ...doc.data() });
+    });
+  }
 
   const { boundCadres, boundAdmins } = getActiveBoundCadresAndAdmins(editorsData, adminsData);
 
   // 通知對象：所有已綁定 LINE 且啟用的幹部 (涵蓋管理員與幹部)
   const recipients = boundCadres;
-  const messageText = buildMonthlyPlanningMessage(nextYear, nextMonth, taipeiDate);
+  const messageText = buildMonthlyPlanningMessage(nextYear, nextMonth, taipeiDate, pendingFeedbacks);
 
   const results = [];
   let successCount = 0;

@@ -269,6 +269,16 @@ async function runAllTests() {
     assert.ok(msg.includes('https://shumei-2025.web.app/activities/events.html'));
   });
 
+  await test('buildMonthlyPlanningMessage: 包含待確認使用者功能升級建議彙整', () => {
+    const feedbacks = [
+      { userName: '蔡松恩', content: '希望願書能多辨識右下角的助教師印章' }
+    ];
+    const msg = buildMonthlyPlanningMessage(2026, 11, null, feedbacks);
+    assert.ok(msg.includes('本月使用者功能升級建議彙整'));
+    assert.ok(msg.includes('蔡松恩'));
+    assert.ok(msg.includes('希望願書能多辨識右下角的助教師印章'));
+  });
+
   await test('buildUpcomingActivityMessage: 包含負責人姓名、時間與活動名稱', () => {
     const msg = buildUpcomingActivityMessage(
       { title: '青年春季研修', location: '台中會館', category: '研修營隊', registeredCount: 25 },
@@ -323,12 +333,33 @@ async function runAllTests() {
             })
           };
         }
+        if (name === 'system_feedbacks') {
+          return {
+            where: (field, op, val) => ({
+              get: async () => ({
+                empty: false,
+                forEach: (cb) => {
+                  cb({
+                    id: 'fb_1',
+                    data: () => ({
+                      content: '希望可以增加活動提醒自訂時間',
+                      userName: '小明'
+                    })
+                  });
+                }
+              })
+            })
+          };
+        }
         if (name === 'notification_logs') {
           return {
             add: async (data) => ({ id: 'log_123' })
           };
         }
-        return { doc: () => ({ get: async () => ({ exists: false }) }) };
+        return {
+          doc: () => ({ get: async () => ({ exists: false }) }),
+          where: () => ({ get: async () => ({ empty: true, forEach: () => {} }) })
+        };
       }
     };
 
@@ -343,6 +374,8 @@ async function runAllTests() {
     assert.strictEqual(result.successCount, 2);
     assert.strictEqual(pushedMessages.length, 2);
     assert.ok(pushedMessages[0].text.includes('11 月活動規劃'));
+    assert.ok(pushedMessages[0].text.includes('本月使用者功能升級建議彙整'));
+    assert.ok(pushedMessages[0].text.includes('希望可以增加活動提醒自訂時間'));
   });
 
   // -------------------------------------------------------------
