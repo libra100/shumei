@@ -427,15 +427,38 @@ function buildMonthlyPlanningMessage(nextYear, nextMonth, taipeiDate = null, pen
 
   if (Array.isArray(pendingFeedbacks) && pendingFeedbacks.length > 0) {
     msg += `\n\n💡【本月使用者功能升級建議彙整】\n小助理在此期間共收集到 ${pendingFeedbacks.length} 則待確認建議：\n`;
-    pendingFeedbacks.slice(0, 5).forEach((fb, idx) => {
-      const user = fb.userName || '成員';
-      const content = fb.content || '';
-      msg += `${idx + 1}. ${user}：「${content}」\n`;
+
+    const categoryIcons = {
+      '入信願書': '📑',
+      '座談會': '🍑',
+      '活動日程': '📅',
+      '淨靈統計': '🙏',
+      '成員資料': '🌿',
+      '系統功能': '⚙️',
+      '其他建議': '💡'
+    };
+
+    const grouped = {};
+    pendingFeedbacks.forEach(fb => {
+      const cat = fb.category || '系統功能';
+      if (!grouped[cat]) grouped[cat] = [];
+      grouped[cat].push(fb);
     });
-    if (pendingFeedbacks.length > 5) {
-      msg += `...以及其他 ${pendingFeedbacks.length - 5} 則建議。\n`;
-    }
-    msg += `管理員可於本次月度籌備會議中一併討論評估！`;
+
+    Object.entries(grouped).forEach(([cat, list]) => {
+      const icon = categoryIcons[cat] || '💡';
+      msg += `\n${icon} 【${cat}】(${list.length}則)：\n`;
+      list.slice(0, 3).forEach((fb, idx) => {
+        const user = fb.userName || '成員';
+        const content = fb.content || '';
+        msg += `  ${idx + 1}. ${user}：「${content}」\n`;
+      });
+      if (list.length > 3) {
+        msg += `  ...以及其他 ${list.length - 3} 則。\n`;
+      }
+    });
+
+    msg += `\n管理員可於本次月度籌備會議中一併討論評估！`;
   }
 
   msg += `\n\n願大家在各項聖業與奉事中充滿神慈光芒與喜悅！🙏✨`;

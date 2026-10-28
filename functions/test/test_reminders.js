@@ -269,14 +269,17 @@ async function runAllTests() {
     assert.ok(msg.includes('https://shumei-2025.web.app/activities/events.html'));
   });
 
-  await test('buildMonthlyPlanningMessage: 包含待確認使用者功能升級建議彙整', () => {
+  await test('buildMonthlyPlanningMessage: 包含待確認使用者功能升級建議彙整與分類標籤', () => {
     const feedbacks = [
-      { userName: '蔡松恩', content: '希望願書能多辨識右下角的助教師印章' }
+      { userName: '蔡松恩', content: '希望願書能多辨識右下角的助教師印章', category: '入信願書' },
+      { userName: '小明', content: '希望座談會可匯出Excel', category: '座談會' }
     ];
     const msg = buildMonthlyPlanningMessage(2026, 11, null, feedbacks);
     assert.ok(msg.includes('本月使用者功能升級建議彙整'));
+    assert.ok(msg.includes('📑 【入信願書】'));
+    assert.ok(msg.includes('🍑 【座談會】'));
     assert.ok(msg.includes('蔡松恩'));
-    assert.ok(msg.includes('希望願書能多辨識右下角的助教師印章'));
+    assert.ok(msg.includes('小明'));
   });
 
   await test('buildUpcomingActivityMessage: 包含負責人姓名、時間與活動名稱', () => {

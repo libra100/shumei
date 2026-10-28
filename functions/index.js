@@ -406,8 +406,6 @@ exports.processLineEvent = onMessagePublished(
       try {
         const feedbackSnap = await db.collection("system_feedbacks")
           .where("status", "==", "pending")
-          .orderBy("createdAt", "desc")
-          .limit(15)
           .get();
 
         if (feedbackSnap.empty) {
@@ -418,13 +416,20 @@ exports.processLineEvent = onMessagePublished(
           return;
         }
 
+        const sortedDocs = feedbackSnap.docs.sort((a, b) => {
+          const tA = a.data().createdAt?.toMillis?.() || (a.data().createdAt?.seconds ? a.data().createdAt.seconds * 1000 : 0);
+          const tB = b.data().createdAt?.toMillis?.() || (b.data().createdAt?.seconds ? b.data().createdAt.seconds * 1000 : 0);
+          return tB - tA;
+        }).slice(0, 15);
+
         let listText = "📋【使用者功能升級建議清單】\n(將於每月 26 日排程統一推播給幹部)\n\n";
         let idx = 1;
-        feedbackSnap.forEach(doc => {
+        sortedDocs.forEach(doc => {
           const d = doc.data();
           const user = d.userName || "使用者";
           const content = d.content || "";
-          listText += `${idx}. ${user}：\n   「${content}」\n\n`;
+          const cat = d.category ? `【${d.category}】` : "";
+          listText += `${idx}. ${cat}${user}：\n   「${content}」\n\n`;
           idx++;
         });
         listText += `共計 ${feedbackSnap.size} 則待確認建議。\n💡 幹部與管理員將於每月 26 日活動籌備提醒時統一收到彙整報告！`;
@@ -447,16 +452,50 @@ exports.processLineEvent = onMessagePublished(
           content = prefixMatch[1].trim();
         }
 
+        // 呼叫 Gemini 進行快速智能分類標籤判斷 (若失敗預設 "系統功能")
+        let category = "系統功能";
+        let usedModel = null;
+        try {
+          const categoryPrompt = `你是一個負責分類使用者功能建議的 AI 助手。
+請閱讀以下使用者的功能建議，將其分類為以下類別之一：
+- 座談會 (與青年座談、座談登記、心得、座談統計、歷史查詢有關)
+- 入信願書 (與紙本願書、拍照辨識、OCR、新信徒建檔、欄位辨識有關)
+- 活動日程 (與活動通知、行事曆、活動負責人提醒、活動報名有關)
+- 淨靈統計 (與淨靈人次登記、施光回報、御神體、淨靈統計有關)
+- 成員資料 (與名冊、靈線、介紹人、世話人、電話地址有關)
+- 系統功能 (與小助理系統介面、操作流程、通知提醒、通用功能有關)
+- 其他建議 (不屬於以上類別的其他建議)
+
+使用者建議內容：
+"${content}"
+
+請只回傳分類名稱（例如："座談會"、"入信願書"、"活動日程"、"淨靈統計"、"成員資料"、"系統功能" 或 "其他建議"），不要加任何其他字或標點符號。`;
+          const catRes = await callGeminiSafe(genAI, categoryPrompt, logger);
+          usedModel = catRes.usedModel;
+          const rawCat = catRes.response.text().trim();
+          const validCategories = ["座談會", "入信願書", "活動日程", "淨靈統計", "成員資料", "系統功能", "其他建議"];
+          const matchedCat = validCategories.find(c => rawCat.includes(c));
+          if (matchedCat) {
+            category = matchedCat;
+          }
+        } catch (catErr) {
+          logger.warn("Auto categorization error, using default category", catErr);
+        }
+
         await db.collection("system_feedbacks").add({
           userName,
           userId: userId || "",
           content,
+          category,
           status: "pending",
           source: isPrivateChat ? "line_private" : "line_group",
           createdAt: admin.firestore.FieldValue.serverTimestamp()
         });
 
-        const replyText = `📝 感謝您的寶貴反饋！\n\n小助理已為您記錄此項功能調整需求：「${content}」\n\n我們已將其列入「下次系統升級確認清單」中，管理員將於每月 26 日排程統一進行評估與規劃更新！感謝您一同讓小助理更完善～🙏`;
+        let replyText = `📝 感謝您的寶貴反饋！\n\n小助理已為您記錄此項功能調整需求（分類標籤：【${category}】）：\n「${content}」\n\n我們已將其列入「下次系統升級確認清單」中，管理員將於每月 26 日排程統一進行評估與規劃更新！感謝您一同讓小助理更完善～🙏`;
+        if (usedModel) {
+          replyText = appendModelTag(replyText, usedModel);
+        }
 
         await client.replyMessage({
           replyToken,
@@ -1082,10 +1121,12 @@ exports.processLineEvent = onMessagePublished(
 請分析以下使用者的訊息，判斷是否為「單筆座談會報名/登記」，或是一般的疑問/閒聊。
 只要使用者提到「進行座談」、「跟...座談」、「開會」、「見面」且包含人名與時間地點，就請視為座談會登記 (isRegistration: true)。
 
-⚠️ 重要排除規則：
+⚠️ 重要排除與回覆規則：
 1. 如果訊息內容屬於「統計列表」、「總覽簡報」、「名單整理」、「座談會行程總結」（例如含有多個日期如 🔺8/21、8/22、或多位成員的整理列表），請務必將 \`isRegistration\` 設為 \`false\`！
 2. 如果無法確定或無法擷取出明確的「成員姓名 (memberName)」或「日期 (date)」，請務必將 \`isRegistration\` 設為 \`false\`！
-3. 如果使用者是在「詢問問題」（例如：「誰有超過100件」、「請問...」等非登記內容），請將 \`isRegistration\` 設為 \`false\`，並在 \`reply\` 欄位給出親切簡短的回答。
+3. 如果使用者是在「詢問問題」（例如：「誰有超過100件」、「請問...」等非登記內容）：
+   - 如果詢問的是秀明小助理目前尚未支援的新功能（例如蔬菜訂購、請假表單、尚未開放的專屬資料等），請在 \`reply\` 欄位親切回答小助理目前尚無此功能，並貼心引導：「💡 若您希望小助理增加此項功能，可直接回覆『建議：想要新增...』，小助理會為您記錄並交給幹部評估喔！」
+   - 如果是一般問答、聖業疑問或閒聊，請在 \`reply\` 欄位給出親切簡短的回覆。
 
 如果訊息中有提到相對時間（例如：今天、明天、後天、下週一等），請務必根據上方提供的「現在的台北時間」自動推算，並將 \`date\` 轉換成絕對的日期格式（例如：YYYY/MM/DD 或 YYYY-MM-DD）。
 如果訊息內容有提到「我」，請將「我」自動對應並替換成發話者的名字（${userName}），並在擷取成員名單或對象者時，直接填寫此名字。
@@ -1150,7 +1191,7 @@ exports.processLineEvent = onMessagePublished(
         if (parsedData.reply && (isPrivateChat || isTagged)) {
           replyText = parsedData.reply;
         } else if (isPrivateChat || isTagged) {
-          replyText = "您好！我是秀明青年小助理～\n您可以透過我完成以下功能：\n1. 📅 查詢「近期活動」與「活動負責人」\n2. 📷 拍照上傳「入信願書」自動建檔\n3. 🙏 傳送「今天施光2次信徒」登記淨靈人次或「淨靈統計」\n4. 🌿 詢問成員靈線、介紹人或私訊查詢電話地址\n5. 🍑 紀錄座談會或查詢當月座談統計！";
+          replyText = "您好！我是秀明青年小助理～\n您可以透過我完成以下功能：\n1. 📅 查詢「近期活動」與「活動負責人」\n2. 📷 拍照上傳「入信願書」自動建檔\n3. 🙏 傳送「今天施光2次信徒」登記淨靈人次或「淨靈統計」\n4. 🌿 詢問成員靈線、介紹人或私訊查詢電話地址\n5. 🍑 紀錄座談會或查詢當月座談統計！\n\n💡 若您希望小助理增加新功能，歡迎隨時回覆「建議：想要新增...」，小助理會為您記錄並列入升級評估清單喔！";
         }
       }
 

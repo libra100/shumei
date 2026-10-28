@@ -78,9 +78,10 @@
 
 | 檔案路徑 | 變更類型 | 核心內容說明 |
 | :--- | :---: | :--- |
-| [`functions/index.js`](file:///Users/tsaisungen/Sites/shumei/functions/index.js) | 核心邏輯 | 1. 增加 `isFeedbackCmd` 與 `isFeedbackQueryCmd` 識別與處理器。<br>2. 寫入 Firestore `system_feedbacks` 與自動回覆。<br>3. 支援幹部私聊 `查看建議` 指令與權限校驗。<br>4. 擴充 `isSeminarQuery` 支援 `本月座談會`。<br>5. 遮蔽認證指令中的真實密碼與移除冗餘範例。 |
-| [`functions/activityReminders.js`](file:///Users/tsaisungen/Sites/shumei/functions/activityReminders.js) | 排程提醒 | 1. `buildMonthlyPlanningMessage` 增加 `pendingFeedbacks` 參數與格式化段落。<br>2. `sendMonthlyPlanningReminder` 異步載入 `system_feedbacks` 並附加容錯機制。 |
-| [`functions/test/test_reminders.js`](file:///Users/tsaisungen/Sites/shumei/functions/test/test_reminders.js) | 單元測試 | 1. 擴充 mockDb 支援 `system_feedbacks.where`。<br>2. 增加月度排程包含建議彙整的斷言驗證。<br>3. 全數 33 項單元測試順利通過。 |
+| [`functions/index.js`](file:///Users/tsaisungen/Sites/shumei/functions/index.js) | 核心邏輯 | 1. 增加 `isFeedbackCmd` 與 `isFeedbackQueryCmd` 識別與處理器。<br>2. 整合 Gemini AI 智能分類標籤（`座談會`、`入信願書`、`活動日程`、`淨靈統計`、`成員資料`、`系統功能` 等）。<br>3. 增加未命中意圖時之「主動引導建議」提示機制。<br>4. 移除 Firestore 複合索引相依改採記憶體排序防止查詢崩潰。<br>5. 擴充 `isSeminarQuery` 支援 `本月座談會`。<br>6. 遮蔽認證指令中的真實密碼與移除冗餘範例。 |
+| [`functions/activityReminders.js`](file:///Users/tsaisungen/Sites/shumei/functions/activityReminders.js) | 排程提醒 | 1. `buildMonthlyPlanningMessage` 增加 `pendingFeedbacks` 參數並依分類標籤與圖示結構化呈現。<br>2. `sendMonthlyPlanningReminder` 異步載入 `system_feedbacks` 並附加容錯保護機制。 |
+| [`functions/test/test_reminders.js`](file:///Users/tsaisungen/Sites/shumei/functions/test/test_reminders.js) | 單元測試 | 1. 擴充 mockDb 支援 `system_feedbacks.where`。<br>2. 增加月度排程包含建議彙整與分類標籤的斷言驗證。<br>3. 全數 33 項單元測試順利通過。 |
+| [`scripts/resolve_feedback.js`](file:///Users/tsaisungen/Sites/shumei/scripts/resolve_feedback.js) | 自動化工具 | 建立 AI 協同專用之全自動結案與 LINE 上線通知工具（支援 `list` 與 `complete` 自動發送推播給原提議者）。 |
 | [`functions/package.json`](file:///Users/tsaisungen/Sites/shumei/functions/package.json) | 環境升級 | 升級 `engines.node` 至 `"22"`，符合 Cloud Functions 最新長期支援規範。 |
 | **GCP 雲端架構** | 營運維護 | 重新綁定 Cloud Billing 帳戶 `01A30B-E7F427-41EBBE` 至專案 `shumei-2025`，排除 Cloud Run 部署凍結異常。 |
 
