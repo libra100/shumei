@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "description": "youth",
   "main": "index.html",
-  "scripts": {},
+  "scripts": {
+    "build": "echo 'No build step required for static hosting'"
+  },
   "keywords": [
     "shumei"
   ],
