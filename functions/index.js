@@ -161,11 +161,11 @@ exports.processLineEvent = onMessagePublished(
     });
 
     // 判斷是否需要處理
-    const isStats = userMessage.includes("統計");
     const lowerMessage = userMessage.toLowerCase();
     const isTagged = lowerMessage.includes("@shumei helper");
 
     // 關鍵字判斷
+    const isGenericStatsCmd = /^(?:統計|查詢統計|統計查詢|查看統計|統計結果|各項統計)$/.test(userMessage.trim());
     const isEditorAuthCmd = /^(?:幹部認證|綁定幹部|編輯認證)\s+(\S+)\s+(.+)$/.test(userMessage.trim());
     const isEditorListCmd = /^(?:編輯人員名單|幹部名單|查看編輯人員)$/.test(userMessage.trim());
     const isJyoreiKeyword = /淨靈|施光|御光|jyorei/i.test(userMessage);
@@ -177,7 +177,7 @@ exports.processLineEvent = onMessagePublished(
       (/^(?:我希望|希望能|能不能|可不可以|可以請小助理|希望小助理|許願)/.test(userMessage.trim()) && userMessage.trim().length >= 4);
 
     // 個人對話 (1對1) 或圖片一律處理；群組或聊天室則需標記機器人或命中關鍵字
-    const isForBot = isPrivateChat || isTagged || isStats || isEditorAuthCmd || isEditorListCmd || isJyoreiKeyword || isLineageKeyword || isSeminarKeyword || isActivityCmd || isFeedbackCmd || isFeedbackQueryCmd || isImage;
+    const isForBot = isPrivateChat || isTagged || isGenericStatsCmd || isEditorAuthCmd || isEditorListCmd || isJyoreiKeyword || isLineageKeyword || isSeminarKeyword || isActivityCmd || isFeedbackCmd || isFeedbackQueryCmd || isImage;
 
     if (!isForBot) {
       return; // 忽略群組中的一般閒聊，不回覆且不呼叫 AI
@@ -508,6 +508,22 @@ exports.processLineEvent = onMessagePublished(
     }
 
     // ==========================================
+    // 功能零點六：各項統計查詢導引 (當使用者詢問「統計」但未指明類別時)
+    // ==========================================
+    if (isGenericStatsCmd && !isJyoreiKeyword && !isSeminarKeyword) {
+      if (isPrivateChat || isTagged) {
+        await client.replyMessage({
+          replyToken,
+          messages: [{
+            type: "text",
+            text: `📊【秀明小助理 統計與查詢導引】\n\n請問您想查看哪一項統計或名單呢？請直接輸入關鍵字：\n\n1. 🙏 輸入「淨靈統計」：查詢全會與個人累積施光人次\n2. 🍑 輸入「本月座談會」：查詢當月青年座談名單與日程\n3. 📅 輸入「近期活動」：查詢近期籌辦活動與負責人日程\n4. 🌿 輸入「介紹人 王小明」：查詢成員靈線與聯絡資訊\n\n💡 若您希望小助理增加其他專屬統計功能，歡迎隨時回覆「建議：想要新增...」，小助理會為您記錄喔！`
+          }]
+        });
+        return;
+      }
+    }
+
+    // ==========================================
     // 功能一：紙本「入信願書」拍照 OCR 自動建檔
     // ==========================================
     if (isImage) {
@@ -649,7 +665,7 @@ exports.processLineEvent = onMessagePublished(
     // 功能二：淨靈 / 施光 口語打卡與統計查詢 (不記錄施光時間)
     // ==========================================
     if (isJyoreiKeyword) {
-      const isJyoreiStats = isStats || /幾次|總計|累積/.test(userMessage);
+      const isJyoreiStats = /統計|幾次|總計|累積/.test(userMessage);
 
       // 2A. 查詢淨靈統計
       if (isJyoreiStats) {
