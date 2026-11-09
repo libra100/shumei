@@ -5,7 +5,7 @@ const { defineSecret } = require("firebase-functions/params");
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
 const { messagingApi } = require("@line/bot-sdk");
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { GoogleGenerativeAI, SchemaType } = require("@google/generative-ai");
 const { PubSub } = require("@google-cloud/pubsub");
 const {
   getTaipeiDate,
@@ -68,8 +68,102 @@ exports.lineWebhook = onRequest(
   }
 );
 
-// Helper: 智慧 Gemini 呼叫器 (含多模型自動備援 Fallback 與重試)
-async function callGeminiSafe(genAI, promptOrParts, logger) {
+// Structured Output (JSON Schema) 設定：確保 Gemini 100% 回傳合法 JSON
+const ADMISSION_OCR_CONFIG = {
+  responseMimeType: "application/json",
+  responseSchema: {
+    type: SchemaType.OBJECT,
+    properties: {
+      isAdmissionForm: { type: SchemaType.BOOLEAN, description: "照片內容是否為入信願書" },
+      name: { type: SchemaType.STRING, nullable: true, description: "入信者姓名" },
+      joinDate: { type: SchemaType.STRING, nullable: true, description: "入信日期 YYYY-MM-DD" },
+      born: { type: SchemaType.STRING, nullable: true, description: "出生年月日 YYYY-MM-DD" },
+      guide: {
+        type: SchemaType.ARRAY,
+        items: { type: SchemaType.STRING },
+        nullable: true,
+        description: "介紹人姓名字串陣列"
+      },
+      sewajin: { type: SchemaType.STRING, nullable: true, description: "世話人" },
+      adress: { type: SchemaType.STRING, nullable: true, description: "通訊地址" },
+      phone: { type: SchemaType.STRING, nullable: true, description: "行動電話" },
+      tel: { type: SchemaType.STRING, nullable: true, description: "市話/家用電話" },
+      note: { type: SchemaType.STRING, nullable: true, description: "備註或其他文字，如助教師" },
+      reply: { type: SchemaType.STRING, nullable: true, description: "若非入信願書，簡短友善告知" }
+    },
+    required: ["isAdmissionForm"]
+  }
+};
+
+const JYOREI_LOG_CONFIG = {
+  responseMimeType: "application/json",
+  responseSchema: {
+    type: SchemaType.OBJECT,
+    properties: {
+      isJyoreiLog: { type: SchemaType.BOOLEAN, description: "是否為淨靈/施光打卡紀錄" },
+      believerCount: { type: SchemaType.INTEGER, nullable: true, description: "信徒人次，預設0" },
+      nonBelieverCount: { type: SchemaType.INTEGER, nullable: true, description: "未信徒人次，預設0" },
+      totalCount: { type: SchemaType.INTEGER, nullable: true, description: "總人次" },
+      targetNames: {
+        type: SchemaType.ARRAY,
+        items: { type: SchemaType.STRING },
+        nullable: true,
+        description: "施光對象名字陣列"
+      },
+      date: { type: SchemaType.STRING, nullable: true, description: "日期 YYYY-MM-DD" },
+      reply: { type: SchemaType.STRING, nullable: true, description: "若非打卡時的親切回應" }
+    },
+    required: ["isJyoreiLog"]
+  }
+};
+
+const LINEAGE_QUERY_CONFIG = {
+  responseMimeType: "application/json",
+  responseSchema: {
+    type: SchemaType.OBJECT,
+    properties: {
+      intent: {
+        type: SchemaType.STRING,
+        enum: ["contact_query", "downline_query", "lineage_query", "other"],
+        description: "查詢意圖"
+      },
+      targetMemberName: { type: SchemaType.STRING, nullable: true, description: "欲查詢的成員姓名" }
+    },
+    required: ["intent"]
+  }
+};
+
+const SEMINAR_PARSE_CONFIG = {
+  responseMimeType: "application/json",
+  responseSchema: {
+    type: SchemaType.OBJECT,
+    properties: {
+      isRegistration: { type: SchemaType.BOOLEAN, description: "是否為單筆座談會報名/登記" },
+      date: { type: SchemaType.STRING, nullable: true, description: "日期 YYYY-MM-DD" },
+      time: { type: SchemaType.STRING, nullable: true, description: "時間" },
+      location: { type: SchemaType.STRING, nullable: true, description: "地點" },
+      memberName: { type: SchemaType.STRING, nullable: true, description: "主要會談的青年成員姓名" },
+      feelings: { type: SchemaType.STRING, nullable: true, description: "當下的感受或內容" },
+      goals: { type: SchemaType.STRING, nullable: true, description: "信仰提升的目標或討論重點" },
+      attendees: { type: SchemaType.STRING, nullable: true, description: "其他參加者名單" },
+      reply: { type: SchemaType.STRING, nullable: true, description: "若非登記且使用者在提問時的回應內容" }
+    },
+    required: ["isRegistration"]
+  }
+};
+
+function parseGeminiJson(rawText) {
+  const trimmed = (rawText || "").trim();
+  try {
+    return JSON.parse(trimmed);
+  } catch (_) {
+    const cleanText = trimmed.replace(/^```json/i, "").replace(/^```/, "").replace(/```$/, "").trim();
+    return JSON.parse(cleanText);
+  }
+}
+
+// Helper: 智慧 Gemini 呼叫器 (含多模型自動備援 Fallback、重試與結構化輸出支援)
+async function callGeminiSafe(genAI, promptOrParts, logger, generationConfig = null) {
   const modelsToTry = [
     "gemini-3.8-flash",
     "gemini-3.5-flash-lite",
@@ -81,7 +175,11 @@ async function callGeminiSafe(genAI, promptOrParts, logger) {
     const modelName = modelsToTry[i];
     try {
       logger.info(`[Gemini] Attempting call with model: ${modelName}`);
-      const m = genAI.getGenerativeModel({ model: modelName });
+      const modelParams = { model: modelName };
+      if (generationConfig) {
+        modelParams.generationConfig = generationConfig;
+      }
+      const m = genAI.getGenerativeModel(modelParams);
       const startTime = Date.now();
       const res = await m.generateContent(promptOrParts);
       logger.info(`[Gemini] Model ${modelName} succeeded in ${Date.now() - startTime}ms`);
@@ -577,13 +675,12 @@ exports.processLineEvent = onMessagePublished(
               mimeType: "image/jpeg"
             }
           }
-        ], logger);
+        ], logger, ADMISSION_OCR_CONFIG);
 
         let parsedData;
         try {
           const rawText = aiResponse.response.text();
-          const cleanText = rawText.replace(/^```json/g, '').replace(/^```/g, '').replace(/```$/g, '').trim();
-          parsedData = JSON.parse(cleanText);
+          parsedData = parseGeminiJson(rawText);
         } catch (e) {
           logger.error("Failed to parse admission OCR JSON", e);
           if (isPrivateChat || isTagged) {
@@ -739,10 +836,9 @@ exports.processLineEvent = onMessagePublished(
 使用者訊息：
 "${userMessage}"
 `;
-        const aiResponse = await callGeminiSafe(genAI, jyoreiPrompt, logger);
+        const aiResponse = await callGeminiSafe(genAI, jyoreiPrompt, logger, JYOREI_LOG_CONFIG);
         const rawText = aiResponse.response.text();
-        const cleanText = rawText.replace(/^```json/g, '').replace(/^```/g, '').replace(/```$/g, '').trim();
-        const parsedData = JSON.parse(cleanText);
+        const parsedData = parseGeminiJson(rawText);
 
         if (parsedData.isJyoreiLog && parsedData.totalCount > 0) {
           const logDate = parsedData.date || new Date().toISOString().split("T")[0];
@@ -812,10 +908,9 @@ exports.processLineEvent = onMessagePublished(
 使用者訊息：
 "${userMessage}"
 `;
-        const aiResponse = await callGeminiSafe(genAI, queryPrompt, logger);
+        const aiResponse = await callGeminiSafe(genAI, queryPrompt, logger, LINEAGE_QUERY_CONFIG);
         const rawText = aiResponse.response.text();
-        const cleanText = rawText.replace(/^```json/g, '').replace(/^```/g, '').replace(/```$/g, '').trim();
-        const parsedQuery = JSON.parse(cleanText);
+        const parsedQuery = parseGeminiJson(rawText);
 
         if (parsedQuery.intent !== "other" && parsedQuery.targetMemberName) {
           const targetName = parsedQuery.targetMemberName.trim();
@@ -1168,13 +1263,12 @@ exports.processLineEvent = onMessagePublished(
 "${userMessage}"
 `;
       
-      const aiResponse = await callGeminiSafe(genAI, prompt, logger);
+      const aiResponse = await callGeminiSafe(genAI, prompt, logger, SEMINAR_PARSE_CONFIG);
 
       let parsedData;
       try {
         const text = aiResponse.response.text();
-        const cleanText = text.replace(/^```json/g, '').replace(/^```/g, '').replace(/```$/g, '').trim();
-        parsedData = JSON.parse(cleanText);
+        parsedData = parseGeminiJson(text);
       } catch (e) {
         logger.error("Failed to parse Gemini response as JSON", e);
         if (!isPrivateChat && !isTagged) return;
